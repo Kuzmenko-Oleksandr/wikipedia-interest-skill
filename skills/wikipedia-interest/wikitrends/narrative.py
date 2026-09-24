@@ -79,7 +79,7 @@ def limitations() -> tuple[str, ...]:
     text = TEMPLATE.read_text(encoding="utf-8")
     block = text.split("## Limitations", 1)[1].split("\n## ", 1)[0]
     items = re.findall(r"^\d+\.\s+(.+?)(?=^\d+\.\s|\Z)", block, re.MULTILINE | re.DOTALL)
-    return tuple(" ".join(item.split()) for item in items)
+    return tuple(" ".join(item.replace("`", "").split()) for item in items)
 
 
 def label(verdict: Verdict) -> str:
