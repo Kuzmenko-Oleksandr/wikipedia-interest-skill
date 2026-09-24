@@ -173,6 +173,7 @@ def stdout_payload(run: RunResult, paths: dict[str, Path | list[Path] | None]) -
     ]
     payload["summary"] = summary(run)
     payload["languages"] = [_stdout_language(r) for r in run.ordered] + missing
+    payload["tiers"] = [list(tier) for tier in run.ranking.tiers]
     payload["warnings"] = list(run.warnings)
     payload["cache"] = {"hits": run.cache_hits, "fetched": run.cache_fetched}
     return payload
@@ -217,6 +218,7 @@ _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop_language_key("vpm_median"),
     _drop("cache"),
     _drop("warnings"),
+    _drop("tiers"),
 )
 
 

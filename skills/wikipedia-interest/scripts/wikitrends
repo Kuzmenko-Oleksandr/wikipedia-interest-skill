@@ -1,0 +1,9 @@
+#!/bin/sh
+# Runs the wikitrends CLI from the skill directory, whatever the caller's working directory.
+# Prefers the skill's own .venv when it exists.
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+python=python3
+if [ -x "$skill_dir/.venv/bin/python" ]; then
+    python="$skill_dir/.venv/bin/python"
+fi
+PYTHONPATH="$skill_dir${PYTHONPATH:+:$PYTHONPATH}" exec "$python" -m wikitrends "$@"
