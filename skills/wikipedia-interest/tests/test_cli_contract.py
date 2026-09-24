@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -172,17 +174,21 @@ def test_summary_names_editions_without_an_article() -> None:
 
 
 def test_refusal_reason_and_audience_outlive_file_paths(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # A Haiku run lost the reason to shedding while chart paths survived.
-    out = str(tmp_path / ("haiku-insufficient-data-" + "x" * 40) / "out")
-    refused, _ = invoke(
-        capsys, "compare", *DEMO, "--topic", "Astronomy", "--langs", "cs", "--out-dir", out
-    )
+    # A Haiku run lost the reason to shedding while chart paths survived. The output folder
+    # is pinned to 100 characters, over twice a typical one: tmp_path alone is that long on
+    # macOS runners, so the test would depend on the platform.
+    base = Path(tempfile.mkdtemp(dir="/tmp")).resolve()
+    out = str(base / ("x" * (99 - len(str(base)))))
+    args = ["compare", *DEMO, "--topic", "Astronomy", "--out-dir", out]
+    try:
+        refused, _ = invoke(capsys, *args, "--langs", "cs")
+        compared, _ = invoke(capsys, *args, "--langs", "de,en,fr")
+    finally:
+        shutil.rmtree(base)
+    assert len(out) == 100
     assert "says nothing about interest" in refused["languages"][0]["reason"]
-    compared, _ = invoke(
-        capsys, "compare", *DEMO, "--topic", "Astronomy", "--langs", "de,en,fr", "--out-dir", out
-    )
     assert all({"vpm_median", "reach_median"} <= set(e) for e in compared["languages"])
     assert "report_pdf" in refused and "report_pdf" in compared
 
