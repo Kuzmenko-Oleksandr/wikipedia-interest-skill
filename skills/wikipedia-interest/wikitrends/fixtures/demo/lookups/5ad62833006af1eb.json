@@ -1,0 +1,20 @@
+{
+ "url": "https://fr.wikipedia.org/w/api.php",
+ "params": {
+  "action": "query",
+  "format": "json",
+  "formatversion": "2",
+  "titles": "Astronomie",
+  "redirects": "1"
+ },
+ "status": 200,
+ "body": {
+  "query": {
+   "pages": [
+    {
+     "title": "Astronomie"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,87 @@
+{
+ "url": "https://meta.wikimedia.org/w/api.php",
+ "params": {
+  "action": "sitematrix",
+  "smtype": "language",
+  "format": "json",
+  "formatversion": "2"
+ },
+ "status": 200,
+ "body": {
+  "sitematrix": {
+   "count": 7,
+   "0": {
+    "code": "cs",
+    "site": [
+     {
+      "url": "https://cs.wikipedia.org",
+      "dbname": "cswiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "1": {
+    "code": "de",
+    "site": [
+     {
+      "url": "https://de.wikipedia.org",
+      "dbname": "dewiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "2": {
+    "code": "en",
+    "site": [
+     {
+      "url": "https://en.wikipedia.org",
+      "dbname": "enwiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "3": {
+    "code": "fr",
+    "site": [
+     {
+      "url": "https://fr.wikipedia.org",
+      "dbname": "frwiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "4": {
+    "code": "pl",
+    "site": [
+     {
+      "url": "https://pl.wikipedia.org",
+      "dbname": "plwiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "5": {
+    "code": "uk",
+    "site": [
+     {
+      "url": "https://uk.wikipedia.org",
+      "dbname": "ukwiki",
+      "code": "wiki"
+     }
+    ]
+   },
+   "6": {
+    "code": "aa",
+    "site": [
+     {
+      "url": "https://aa.wikipedia.org",
+      "dbname": "aawiki",
+      "code": "wiki",
+      "closed": true
+     }
+    ]
+   },
+   "specials": []
+  }
+ }
+}

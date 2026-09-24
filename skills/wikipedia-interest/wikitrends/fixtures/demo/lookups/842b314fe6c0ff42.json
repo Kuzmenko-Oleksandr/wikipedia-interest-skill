@@ -1,0 +1,25 @@
+{
+ "url": "https://en.wikipedia.org/w/api.php",
+ "params": {
+  "action": "query",
+  "format": "json",
+  "formatversion": "2",
+  "list": "search",
+  "srsearch": "Astronomy",
+  "srnamespace": "0",
+  "srlimit": "3"
+ },
+ "status": 200,
+ "body": {
+  "query": {
+   "search": [
+    {
+     "title": "Astronomy"
+    },
+    {
+     "title": "Astronomer"
+    }
+   ]
+  }
+ }
+}

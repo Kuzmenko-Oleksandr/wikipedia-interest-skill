@@ -304,10 +304,21 @@ def _spikes(values: FloatArray, score: RobustScore) -> BoolArray:
         return (score.z > SPIKE_Z) & (values >= MIN_SPIKE_RATIO * score.baseline)
 
 
+def _spike_days(values: FloatArray, centred: RobustScore, trailing: RobustScore) -> BoolArray:
+    """A spike must stand out from the days before it and from the days around it.
+
+    The second test keeps a lasting step, or the return from a summer dip, out:
+    past the change the centred median already sits at the new level.
+    """
+    with np.errstate(invalid="ignore"):
+        above_centred = values >= MIN_SPIKE_RATIO * centred.baseline
+    return _spikes(values, centred) | (_spikes(values, trailing) & above_centred)
+
+
 def detect_spikes(values: FloatArray) -> SpikeScan:
     """Finds spike events; charts draw this mask and never detect on their own."""
     centred, trailing = centred_score(values), trailing_score(values)
-    spike_days = _spikes(values, centred) | _spikes(values, trailing)
+    spike_days = _spike_days(values, centred, trailing)
     events: list[SpikeEvent] = []
     for first, last in _clusters(np.flatnonzero(spike_days)):
         start = first

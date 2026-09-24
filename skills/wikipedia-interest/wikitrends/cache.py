@@ -87,6 +87,13 @@ class PageviewStore:
                 (kind, key, span.start.isoformat(), span.end.isoformat(), fetched_at.isoformat()),
             )
 
+    def stats(self) -> tuple[int, int]:
+        """(distinct series, stored days)."""
+        row = self._conn.execute(
+            "SELECT COUNT(DISTINCT kind || '|' || key), COUNT(*) FROM pageviews"
+        ).fetchone()
+        return int(row[0]), int(row[1])
+
     def missing_days(self, kind: str, key: str, span: DateRange, now: datetime) -> list[date]:
         """Days never requested, or requested while still unsettled and now stale."""
         intervals = [

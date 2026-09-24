@@ -1,0 +1,41 @@
+{
+ "url": "https://www.wikidata.org/w/api.php",
+ "params": {
+  "action": "wbgetentities",
+  "sites": "enwiki",
+  "titles": "Astronomy",
+  "props": "sitelinks",
+  "normalize": "1",
+  "format": "json"
+ },
+ "status": 200,
+ "body": {
+  "entities": {
+   "Q333": {
+    "sitelinks": {
+     "enwiki": {
+      "title": "Astronomy"
+     },
+     "ukwiki": {
+      "title": "Астрономія"
+     },
+     "plwiki": {
+      "title": "Astronomia"
+     },
+     "cswiki": {
+      "title": "Astronomie"
+     },
+     "dewiki": {
+      "title": "Astronomie"
+     },
+     "frwiki": {
+      "title": "Astronomie"
+     },
+     "commonswiki": {
+      "title": "Category:Astronomy"
+     }
+    }
+   }
+  }
+ }
+}

@@ -118,6 +118,14 @@ class DailySeries:
         """Days under `mask` become NaN."""
         return self.replace(np.where(mask, np.nan, self.values))
 
+    def plus(self, other: DailySeries) -> DailySeries:
+        """Day-wise sum; a day is missing only when it is missing from both."""
+        if other.start != self.start or len(other) != len(self):
+            raise ValueError("series must share one calendar")
+        both_missing = np.isnan(self.values) & np.isnan(other.values)
+        total = np.nan_to_num(self.values) + np.nan_to_num(other.values)
+        return self.replace(np.where(both_missing, np.nan, total))
+
     def first_observed(self) -> int | None:
         hits = np.flatnonzero(self.observed)
         return int(hits[0]) if hits.size else None

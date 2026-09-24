@@ -1,0 +1,13 @@
+{
+ "today": "2026-09-24",
+ "synthetic": true,
+ "note": "Synthetic series built by tests/make_demo_fixture.py; not real traffic.",
+ "scenarios": {
+  "en": "edition shrinks",
+  "uk": "growth",
+  "pl": "school-year seasonality",
+  "cs": "low volume",
+  "de": "news spikes",
+  "fr": "step"
+ }
+}
