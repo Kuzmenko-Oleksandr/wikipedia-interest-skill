@@ -134,7 +134,7 @@ def language_sentence(result: LanguageResult) -> str:
         )
     if verdict in (Verdict.GROWING_EVENT_DRIVEN, Verdict.DECLINING_EVENT_DRIVEN):
         return _event_sentence(result, window, confidence)
-    return _step_sentence(result, confidence)
+    return _step_sentence(result, window, confidence)
 
 
 def _event_sentence(result: LanguageResult, window: str, confidence: str) -> str:
@@ -153,16 +153,16 @@ def _event_sentence(result: LanguageResult, window: str, confidence: str) -> str
     )
 
 
-def _step_sentence(result: LanguageResult, confidence: str) -> str:
+def _step_sentence(result: LanguageResult, window: str, confidence: str) -> str:
     a = result.assessment
-    ratio = a.step_ratio or 1.0
-    direction = "up" if ratio > 1 else "down"
+    direction = "up" if a.verdict is Verdict.LEVEL_SHIFT_UP else "down"
     day = result.views.day(a.headline.step.day) if a.headline else result.views.start
-    size = "" if "direction_only" in a.flags else f" ~{abs(ratio - 1) * 100:.0f}%"
+    size = "" if a.step_ratio is None else f" ~{abs(a.step_ratio - 1) * 100:.0f}%"
     return (
-        f"{result.lang}: {_measure(a)} stepped {direction}{size} around {day} and stayed there; "
-        "this is a one-off level shift, not steady growth. Shifts like this often coincide "
-        f"with a rename, a link from a busy page or a search-engine change{confidence}."
+        f"{result.lang}: {_measure(a)} stepped {direction}{size} around {day} {window} and "
+        "stayed there; this is a one-off level shift, not steady growth. Shifts like this "
+        f"often coincide with a rename, a link from a busy page or a search-engine change"
+        f"{confidence}."
     )
 
 
@@ -217,6 +217,8 @@ def comparison_sentences(results: Mapping[str, LanguageResult], ranking: Ranking
 def _short(result: LanguageResult, detail: int) -> str:
     a = result.assessment
     text = f"{result.lang} {label(a.verdict)}"
+    if detail >= 1 and a.level_shift and a.headline is not None:
+        text += f" {result.views.day(a.headline.step.day):%Y-%m}"
     if detail >= 1 and a.pct_per_year is not None and a.verdict is not Verdict.STABLE:
         text += f" {a.pct_per_year:+.0f}%/yr"
     if detail >= 2 and a.mde_pct_per_year is not None:
@@ -226,10 +228,12 @@ def _short(result: LanguageResult, detail: int) -> str:
     return text
 
 
-def summary(results: Sequence[LanguageResult], days: int) -> str:
+def summary(results: Sequence[LanguageResult], days: int, missing: Sequence[str] = ()) -> str:
     """At most 200 characters, so the agent can answer without opening a file."""
+    absent = [f"{lang} no article" for lang in missing]
     for detail in (2, 1, 0):
-        text = f"Over {days} days: " + "; ".join(_short(r, detail) for r in results)
+        parts = [_short(r, detail) for r in results] + absent
+        text = f"Over {days} days: " + "; ".join(parts)
         if len(text) <= SUMMARY_LIMIT:
             return text
     return text[: SUMMARY_LIMIT - 1] + "…"

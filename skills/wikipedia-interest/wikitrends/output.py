@@ -16,6 +16,11 @@ from .stats import SeriesAnalysis, TrendFit
 
 SCHEMA = 1
 STDOUT_LIMIT = 1024
+# Quoted by the agent in its answer; the full list is in metrics.json and the PDF.
+CAVEAT = (
+    "Pageviews show attention to one article per language, not demand; "
+    "this window only, no forecast."
+)
 
 Payload = dict[str, Any]
 
@@ -66,6 +71,13 @@ def _analysis(result: LanguageResult, analysis: SeriesAnalysis | None) -> Payloa
     }
 
 
+def _step_date(result: LanguageResult) -> str | None:
+    a = result.assessment
+    if not a.level_shift or a.headline is None:
+        return None
+    return str(result.views.day(a.headline.step.day))
+
+
 def language_metrics(result: LanguageResult) -> Payload:
     a = result.assessment
     return {
@@ -78,6 +90,7 @@ def language_metrics(result: LanguageResult) -> Payload:
         "pct_per_year_ci": [_num(v) for v in a.pct_ci] if a.pct_ci else None,
         "mde_pct_per_year": _num(a.mde_pct_per_year),
         "step_ratio": _num(a.step_ratio, 2),
+        "step_date": _step_date(result),
         "blocking_gate": a.blocking.gate if a.blocking else None,
         "flags": list(a.flags),
         "sentence": narrative.language_sentence(result),
@@ -111,7 +124,7 @@ def conclusions(run: RunResult) -> list[str]:
 
 
 def summary(run: RunResult) -> str:
-    return narrative.summary(run.ordered, run.request.span.days)
+    return narrative.summary(run.ordered, run.request.span.days, run.missing)
 
 
 def metrics_payload(run: RunResult, question: str) -> Payload:
@@ -145,12 +158,14 @@ def _stdout_language(result: LanguageResult) -> Payload:
     entry: Payload = {"lang": result.lang, "title": result.article.title, "verdict": str(a.verdict)}
     if a.blocking is not None:
         entry["blocking_gate"] = a.blocking.gate
+        entry["reason"] = a.blocking.message
         return entry
     entry["confidence"] = str(a.confidence)
     for key, value in (
         ("pct_per_year", _num(a.pct_per_year)),
         ("mde_pct_per_year", _num(a.mde_pct_per_year)),
         ("step_ratio", _num(a.step_ratio, 2)),
+        ("step_date", _step_date(result)),
         ("vpm_median", _num(result.penetration.value) if result.penetration else None),
         ("reach_median", _num(result.reach.value, 0) if result.reach else None),
     ):
@@ -174,14 +189,31 @@ def stdout_payload(run: RunResult, paths: dict[str, Path | list[Path] | None]) -
     payload["summary"] = summary(run)
     payload["languages"] = [_stdout_language(r) for r in run.ordered] + missing
     payload["tiers"] = [list(tier) for tier in run.ranking.tiers]
+    payload["caveat"] = CAVEAT
     payload["warnings"] = list(run.warnings)
     payload["cache"] = {"hits": run.cache_hits, "fetched": run.cache_fetched}
     return payload
 
 
+ERROR_BYTES = 400
+
+
+def _clip(text: str, limit: int) -> str:
+    """At most `limit` UTF-8 bytes, cut on a character boundary."""
+    data = text.encode()
+    if len(data) <= limit:
+        return text
+    return data[: limit - 3].decode(errors="ignore") + "..."
+
+
 def error_payload(error: WikitrendsError) -> Payload:
     hint = error.hint or "Rerun with -v to see the log on stderr."
-    return {"ok": False, "schema": SCHEMA, "error": str(error), "hint": hint}
+    return {
+        "ok": False,
+        "schema": SCHEMA,
+        "error": _clip(str(error), ERROR_BYTES),
+        "hint": _clip(hint, ERROR_BYTES),
+    }
 
 
 def _dumps(payload: Payload) -> str:
@@ -200,6 +232,22 @@ def _drop(key: str) -> Callable[[Payload], None]:
     return lambda payload: payload.pop(key, None)
 
 
+def _drop_metrics_path(payload: Payload) -> None:
+    # metrics.json sits next to report.pdf, so the PDF path already locates it.
+    if "report_pdf" in payload:
+        payload.pop("metrics_json", None)
+
+
+def _essentials(payload: Payload) -> None:
+    """Last resort: the verdicts, the summary and where to find everything else."""
+    keep = ("ok", "schema", "slug", "report_pdf", "metrics_json", "summary")
+    languages = [{"lang": e["lang"], "verdict": e["verdict"]} for e in payload.get("languages", [])]
+    for key in list(payload):
+        if key not in keep:
+            payload.pop(key)
+    payload["languages"] = languages
+
+
 def _trim_warnings(payload: Payload) -> None:
     warnings = payload.get("warnings", [])
     if len(warnings) > 1:
@@ -210,6 +258,7 @@ def _trim_warnings(payload: Payload) -> None:
 _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop_language_key("title"),
     _drop_language_key("flags"),
+    _drop_language_key("reason"),
     _drop("charts"),
     _drop("report_png"),
     _drop("data_csv"),
@@ -217,17 +266,47 @@ _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop_language_key("reach_median"),
     _drop_language_key("vpm_median"),
     _drop("cache"),
+    _drop_metrics_path,
     _drop("warnings"),
     _drop("tiers"),
+    _drop_language_key("mde_pct_per_year"),
+    _drop_language_key("step_ratio"),
+    _drop_language_key("step_date"),
+    _drop_language_key("pct_per_year"),
+    _drop_language_key("confidence"),
+    _drop("caveat"),
+    _essentials,
 )
 
 
+def _fits(payload: Payload) -> bool:
+    return len(_dumps(payload).encode()) <= STDOUT_LIMIT
+
+
+def _hard_cap(payload: Payload) -> None:
+    """Only for absurd inputs (paths or topics of hundreds of characters)."""
+    languages = payload.get("languages", [])
+    while languages and not _fits(payload):
+        languages.pop()
+        payload["languages_cut"] = True
+    if not _fits(payload):
+        payload["summary"] = _clip(payload.get("summary", ""), 120)
+    for key in ("metrics_json", "report_pdf"):
+        if not _fits(payload):
+            payload.pop(key, None)
+
+
 def to_line(payload: Payload) -> str:
-    """One JSON line of at most 1 KB; detail is shed in a fixed order to fit."""
-    line = _dumps(payload)
+    """One JSON line of at most 1 KB; detail is shed in a fixed order to fit.
+
+    Error payloads are clipped when built and never lose `error` or `hint`.
+    """
+    if payload.get("ok") is False:
+        return _dumps(payload)
     for shed in _SHEDDING:
-        if len(line.encode()) <= STDOUT_LIMIT:
+        if _fits(payload):
             break
         shed(payload)
-        line = _dumps(payload)
-    return line
+    if not _fits(payload):
+        _hard_cap(payload)
+    return _dumps(payload)

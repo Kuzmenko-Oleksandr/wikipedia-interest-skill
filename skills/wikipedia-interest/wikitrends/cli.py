@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import contextlib
 import logging
+import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, override
 
 from .api import ActionApi, PageviewsApi, SiteMatrixApi, WikidataApi
 from .artifacts import ArtifactWriter
@@ -25,6 +26,9 @@ from .transport import JsonTransport, WikimediaTransport
 
 log = logging.getLogger("wikitrends")
 
+# Lets the eval suite and CI pin the fixture without the agent passing a flag; eval
+# cases may only set EVAL_* variables.
+FIXTURE_ENV = "EVAL_WIKITRENDS_FIXTURE"
 DEFAULT_WINDOW_DAYS = 730
 DATA_LAG_DAYS = 2
 SUGGESTED_LIMIT = 20
@@ -39,6 +43,7 @@ LARGE_EDITIONS = (
 class _Parser(argparse.ArgumentParser):
     """Usage errors become the JSON error line instead of argparse's exit 2."""
 
+    @override
     def error(self, message: str) -> NoReturn:
         raise UsageError(message, f"Run `{self.prog} --help` for the options.")
 
@@ -60,18 +65,21 @@ def _build(args: argparse.Namespace) -> Context:
     today = date.today()
     transport: JsonTransport
     cache_path: Path | None
-    if args.offline_fixture:
-        replay = ReplayTransport(FixtureStore(fixture_dir(args.offline_fixture)))
+    fixture = args.offline_fixture or os.environ.get(FIXTURE_ENV)
+    if fixture:
+        replay = ReplayTransport(FixtureStore(fixture_dir(fixture)))
         transport, today = replay, replay.today or today
         if replay.synthetic:
             notices.append("Offline fixture: synthetic data, not real Wikipedia traffic.")
         # Fixture data must never leak into the real cache.
-        cache_path = Path(args.cache_dir) / "cache.db" if args.cache_dir else None
+        cache_path = (Path(args.cache_dir) / "cache.db").resolve() if args.cache_dir else None
     else:
         transport = WikimediaTransport()
         if args.record_fixture:
             transport = RecordingTransport(transport, FixtureStore(Path(args.record_fixture)))
-        cache_path = Path(args.cache_dir) / "cache.db" if args.cache_dir else default_cache_path()
+        cache_path = (
+            Path(args.cache_dir) / "cache.db" if args.cache_dir else default_cache_path()
+        ).resolve()
     db = CacheDatabase(cache_path or ":memory:")
     store = JsonStore(db)
     pages = ActionApi(transport)
@@ -194,7 +202,7 @@ def cmd_cache(args: argparse.Namespace, ctx: Context) -> Payload:
     if args.clear:
         if path is not None and path.exists():
             path.unlink()
-        return {"ok": True, "schema": 1, "cleared": str(path)}
+        return {"ok": True, "schema": 1, "cleared": str(path) if path else None}
     series, days = ctx.store.stats()
     return {
         "ok": True,
