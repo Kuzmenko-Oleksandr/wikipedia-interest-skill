@@ -110,6 +110,14 @@ class DailySeries:
     def day(self, index: int) -> date:
         return self.start + timedelta(days=index)
 
+    def replace(self, values: FloatArray) -> DailySeries:
+        """Same calendar and slice, new values."""
+        return DailySeries(self.start, values, self.traffic)
+
+    def masked(self, mask: NDArray[np.bool_]) -> DailySeries:
+        """Days under `mask` become NaN."""
+        return self.replace(np.where(mask, np.nan, self.values))
+
     def first_observed(self) -> int | None:
         hits = np.flatnonzero(self.observed)
         return int(hits[0]) if hits.size else None
@@ -125,7 +133,7 @@ class DailySeries:
         smoothed = rolling_median(total.values, DENOMINATOR_WINDOW)
         with np.errstate(divide="ignore", invalid="ignore"):
             vpm = np.where(smoothed > 0, 1e6 * self.values / smoothed, np.nan)
-        return DailySeries(self.start, vpm, self.traffic)
+        return self.replace(vpm)
 
     def weekly(self, min_days: int = MIN_WEEK_DAYS) -> WeeklySeries:
         """Weekly medians; a week with fewer than `min_days` observed days is NaN.

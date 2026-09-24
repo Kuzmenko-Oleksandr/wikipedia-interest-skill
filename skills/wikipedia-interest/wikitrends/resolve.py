@@ -60,13 +60,14 @@ class EditionRegistry:
         return {db: lang for lang, db in self._editions().items()}.get(dbname)
 
     def _editions(self) -> dict[str, str]:
-        if self._by_lang is None:
-            cached = self._store.get("sitematrix", LOOKUP_TTL, self._clock())
-            if cached is None:
-                cached = {e.lang: e.dbname for e in self._source.wikipedia_editions()}
-                self._store.put("sitematrix", cached, self._clock())
-            self._by_lang = cached
-        return self._by_lang
+        editions = self._by_lang
+        if editions is None:
+            editions = self._store.get("sitematrix", LOOKUP_TTL, self._clock())
+            if editions is None:
+                editions = {e.lang: e.dbname for e in self._source.wikipedia_editions()}
+                self._store.put("sitematrix", editions, self._clock())
+            self._by_lang = editions
+        return editions
 
 
 class TopicResolver:
