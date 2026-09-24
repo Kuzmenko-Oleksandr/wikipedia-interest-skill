@@ -5,8 +5,11 @@ description: >-
   editions and detect whether that interest is genuinely growing. Produces charts and
   a one-page PDF report with explicit confidence levels and stated limitations. Use when
   deciding which topic to build content for, which language to localize into, or when
-  asked whether interest in a subject is rising in a given country or language. Not for
-  real-time traffic, not a measure of purchase intent, and not a forecasting tool.
+  asked whether interest in a subject is rising in a given country or language. Also use
+  it whenever a request pairs Wikipedia with interest, popularity, attention or pageviews
+  of a topic. If no languages are named, use it anyway: it lists the editions that have
+  the article so languages can be proposed. Not for real-time traffic, not a measure of
+  purchase intent, and not a forecasting tool.
 license: MIT
 compatibility: >-
   Requires Python 3.12+ and network access to wikimedia.org. Dependencies installed via
@@ -27,34 +30,33 @@ Follow these steps in order. All numbers come from the script; never compute the
 2. Write the topic as the English Wikipedia article name, for example
    `Intermittent fasting`. If the topic only exists in one local edition, write it in
    that language and add `--source-lang <code>`.
-3. Pick the window. Default is the last two years; omit `--since`. For "over the last
-   N years" pass `--since` N years before today, as `YYYY-MM-DD`.
+3. Pick the window. Default is the last two years; omit `--since`. For "since <date>"
+   or "over the last N years" pass `--since YYYY-MM-DD`.
 4. Run one `compare` call (see "Quick start"). It resolves titles, downloads, analyzes,
-   draws charts and writes the PDF.
+   draws charts and writes the PDF. Do not run any setup check first.
 5. Answer from the printed JSON line only: `summary`, then per language `verdict`,
    `confidence`, `pct_per_year` or `mde_pct_per_year`, `blocking_gate`. Do not open the
    PDF, PNG, CSV or metrics file unless the user asks for details they contain.
-6. Give the user the `report_pdf` path, state the window, and name at least one
-   limitation (see "What not to claim").
+6. Answer in the user's language with exactly these parts, in this order:
+   - one sentence per language: its verdict, the window, its `confidence`;
+   - the `report_pdf` path;
+   - a line starting "Limitations:" with the `caveat` text, always, even when
+     `warnings` add other notes.
 7. Base every recommendation on a verdict and its confidence. Say which language or
    topic the data favours and why, in one or two sentences.
 
-## Setup
+## Running the script
 
-Run once. `scripts/wikitrends` is relative to this skill's directory; call it through `sh`.
-
-```bash
-sh scripts/wikitrends cache --status
-```
-
-`{"ok":true,...}` means ready. If it prints `"ok":false`, run the command in its `hint`
-(it creates `.venv` inside the skill with Python 3.12+ and installs `requirements.txt`),
-then retry. The script uses that `.venv` automatically.
+Call it with `sh` and its full path, from the current working directory:
+`sh <skill-dir>/scripts/wikitrends ...`, where `<skill-dir>` is this skill's base
+directory. Never `cd` into the skill directory: reports go to `./out` of the current
+directory. If the JSON line says `"ok":false` with an install command in `hint`, run that
+command once and repeat the call. The script uses the skill's `.venv` automatically.
 
 ## Quick start
 
 ```bash
-sh scripts/wikitrends compare --topic "Intermittent fasting" --langs pl,cs \
+sh <skill-dir>/scripts/wikitrends compare --topic "Intermittent fasting" --langs pl,cs \
   --since 2024-09-01 --question "Compare growth of interest in intermittent fasting in pl and cs"
 ```
 
@@ -67,7 +69,8 @@ Prints exactly one JSON line, for example:
  "languages":[{"lang":"cs","verdict":"insufficient_data","blocking_gate":"G1_low_volume"},
   {"lang":"pl","verdict":"growing","confidence":"medium","pct_per_year":18.2,
    "vpm_median":4.1,"reach_median":310,"flags":["autocorrelated"]}],
- "tiers":[["pl"]],"warnings":[],"cache":{"hits":0,"fetched":4}}
+ "tiers":[["pl"]],"caveat":"Pageviews show attention to one article per language, ...",
+ "warnings":[],"cache":{"hits":0,"fetched":4}}
 ```
 
 A follow-up question on the same topic and window costs no network requests: rerun the
@@ -95,16 +98,17 @@ Verdicts, in the order the script tests them:
 
 | verdict | Say |
 |---|---|
-| `insufficient_data` | "Not enough data to judge" plus the reason from `blocking_gate`. Never rank it last. |
+| `insufficient_data` | "Not enough data to measure a trend", then the `reason` as given. Never call the topic unpopular or say readers prefer something else; never rank it last. |
 | `series_discontinuity` | "The article was probably renamed; the series breaks." No trend claim. |
-| `level_shift_up` / `level_shift_down` | "Views stepped up/down by ~(step_ratio−1)×100% and stayed; a one-off shift, not steady growth." |
-| `growing_event_driven` / `declining_event_driven` | "The change comes from short spikes; without them no trend is detected." |
+| `level_shift_up` / `level_shift_down` | "Views jumped (or dropped) by ~(step_ratio−1)×100% around `step_date` (the month is also in `summary`) and stayed there: a one-off shift, not growth." Never say "grew". |
+| `growing_event_driven` / `declining_event_driven` | "No lasting change: the rise (or drop) came from short spikes; without them no trend is detected." Answer "is it growing?" with no. |
 | `growing` / `declining` | "Grew/fell ~pct_per_year %/yr over the N-day window." Without `pct_per_year`, give the direction only. |
 | `stable` | "Stable: the yearly change is within ±5%." |
 | `no_detectable_trend` | "No trend detected; changes smaller than ±mde_pct_per_year %/yr would not have been visible." |
 
-`confidence` is `high`, `medium` or `low`; each flag below lowers it one step. Always
-state it next to the verdict.
+`confidence` is `high`, `medium` or `low`; each flag below lowers it one step. State it
+next to the verdict as given; explain it only with the flags listed, never with reasons
+of your own.
 
 | flag | Meaning |
 |---|---|
@@ -126,7 +130,7 @@ comparable across languages; `reach_median` is typical daily views; `summary` is
 
 ## Choosing languages
 
-1. Run `sh scripts/wikitrends resolve --topic "T"`.
+1. Run `sh <skill-dir>/scripts/wikitrends resolve --topic "T"`.
 2. Read `titles` (up to 20 large editions that have the article) and `available_count`.
 3. Suggest 3 to 5 editions that fit the user's goal, or ask the user to choose.
 4. Then run `compare --titles <titles_arg from resolve, trimmed to the chosen languages>`.

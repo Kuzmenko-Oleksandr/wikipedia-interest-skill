@@ -4,9 +4,11 @@
 
 Every command prints exactly one JSON line (at most 1 KB) and nothing else on stdout.
 Logs go to stderr. When the line would exceed 1 KB, fields are dropped in this order:
-per-language `title`, `flags`, `charts`, `report_png`, `data_csv`, all but one warning,
-`reach_median`, `vpm_median`, `cache`, `warnings`, `tiers`. Everything dropped is still in
-`metrics.json`.
+per-language `title`, `flags`, `reason`, `charts`, `report_png`, `data_csv`, all but one warning,
+`reach_median`, `vpm_median`, `cache`, `metrics_json` (only when `report_pdf` is present:
+it sits in the same folder), `warnings`, `tiers`, then per-language `mde_pct_per_year`,
+`step_ratio`, `step_date`, `pct_per_year` and `confidence` (the `summary` still carries
+the verdicts), and finally `caveat`. Everything dropped is still in `metrics.json`.
 
 ### compare / analyze / report
 
@@ -22,6 +24,7 @@ per-language `title`, `flags`, `charts`, `report_png`, `data_csv`, all but one w
 | `summary` | At most 200 characters; quotable as is. |
 | `languages[]` | One entry per requested language, sorted by code. |
 | `tiers` | Languages ranked by share of attention; each inner list is statistically indistinguishable. |
+| `caveat` | One sentence of limitations to quote in the answer. |
 | `warnings` | Clamped dates, renames followed, missing articles, synthetic fixture data. |
 | `cache` | Pageview series served from the cache (`hits`) and downloaded (`fetched`). |
 
@@ -35,9 +38,11 @@ per-language `title`, `flags`, `charts`, `report_png`, `data_csv`, all but one w
 | `pct_per_year` | Headline change per year (log-scale Theil-Sen of views per million, or raw views under `vpm_suppressed`). Absent when it must not be quoted. |
 | `mde_pct_per_year` | For stable, no-trend and event-driven verdicts: the smallest yearly change this data could have detected. |
 | `step_ratio` | For level shifts: level after / level before (1.5 = +50%). |
+| `step_date` | For level shifts: the week the new level starts. |
 | `vpm_median` | Median views per million edition views: share of attention, comparable across languages. |
 | `reach_median` | Median daily views: audience size, not comparable as interest. |
 | `blocking_gate` | Why a refusal happened: a gate code or `no_article`. |
+| `reason` | The gate's message for a refusal, to repeat as is. |
 | `flags` | Every condition that weakened the result; see SKILL.md. |
 
 ### resolve

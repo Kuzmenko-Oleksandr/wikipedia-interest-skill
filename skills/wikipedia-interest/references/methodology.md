@@ -80,7 +80,8 @@ For G7, `prior` is the median of days −120..−30 and `recent` the median of t
 page moved, the old and the new title are summed and the analysis reruns.
 
 Each gate carries a fixed English message that goes verbatim into the JSON and the PDF,
-for example: "Median 7 views/day is below 10: too little traffic to measure a trend."
+for example: "Median 7 views/day is below 10: too little traffic on this article to measure
+a trend. It says nothing about interest in the topic, which may sit under other articles."
 
 ## Spikes
 
@@ -106,9 +107,10 @@ ratio is peak views over the pre-event level. Charts draw this mask; they never 
 
 ## Seasonality
 
-Offsets are additive on `log1p(views)`.
+Offsets are additive on the log scale `log(y + c)`, where `c` is 1% of the series' median
+positive value (see "Trend").
 
-- Weekday: for each day, `log1p(y) − log1p(centred 7-day median)`; median per weekday;
+- Weekday: for each day, `log(y + c) − log(centred 7-day median + c)`; median per weekday;
   centred to mean 0.
 - Month: only when the window is at least 730 days (each month seen twice). On weekly
   medians of the weekday-adjusted log series, fit a 53-week running median, take the
@@ -145,9 +147,9 @@ On the valid weekly medians `(t_i, y_i)`:
 - **Two rates**, both in `metrics.json`:
   - linear: `100 × β × 365.25 / level_mid`, with `level_mid` the fitted value at the
     window midpoint;
-  - log (the headline): Theil-Sen on `log1p(y)` gives `b`; `100 × (e^{365.25 b} − 1)`.
-    It does not depend on the article's size, so it is the only rate comparable across
-    languages.
+  - log (the headline): Theil-Sen on `log(y + c)` gives `b`; `100 × (e^{365.25 b} − 1)`,
+    with `c` 1% of the median positive value. It does not depend on the article's size
+    or the unit, so it is the only rate comparable across languages.
 
 The trend runs twice: on all days, and with spike events and dips removed ("clean").
 
@@ -164,7 +166,11 @@ the MDE from collapsing to 0 when most weekly medians tie.
 - **Pettitt** on the clean weekly log values: ranks `r_i` (ties averaged),
   `U_t = 2 Σ_{i≤t} r_i − t(n + 1)`, `K = max|U_t|`,
   `p ≈ 2 exp(−6K² / (n³ + n²))`. The split is after the `t` that maximizes `|U_t|`.
-- **Step model**: segment medians before and after the split, compared with the linear
+- **Step location and size**: the split that minimizes the absolute deviation from the
+  two segment medians. Pettitt's statistic keeps growing past a step when the later
+  segment drifts (on the demo fixture it put a March step in May), so Pettitt supplies
+  only the significance.
+- **Step model**: segment medians before and after that split, compared with the linear
   Theil-Sen fit by median absolute residual. The step model has one more parameter, so it
   must be at least 10% better; both segments need 8 weeks or more.
 - **Level shift** when `p < α`, the step model wins, and the step is at least 15%.
@@ -227,7 +233,8 @@ The unit tests assert each of these.
 
 ## Departures from the original design
 
-Each was found by a failing synthetic test and is covered by one now.
+Each was found by a failing synthetic test, a look at a generated report or the
+independent code review, and each is covered by a test now.
 
 1. **Trailing spike window.** A centred 15-day median alone missed a 41× news spike
    whose decay filled half the window: the median rose to the spike level. Spikes are
@@ -245,3 +252,11 @@ Each was found by a failing synthetic test and is covered by one now.
    are not level shifts.
 5. **MDE floor.** With low counts most weekly medians tie, the rank interval has zero
    width and the MDE was 0. The residual standard error now bounds it from below.
+6. **Step location.** Pettitt's split drifted eight weeks past a real step when the level
+   after it kept rising slowly. The location now comes from the median scan; on 20 seeds
+   each it invents no level shift on linear growth or flat series and finds every +30%
+   step.
+7. **Log offset.** `log1p` adds 1 whatever the unit. Views per million are often below
+   1, and there it flattened every rate: +30%/yr read as +9% at 0.4 per million, and a
+   60% step as 17%. The offset is now 1% of the series' own median, and a test checks
+   the rate at units 1, 10⁻³ and 10⁻⁶.
