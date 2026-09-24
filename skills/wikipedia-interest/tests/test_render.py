@@ -75,7 +75,8 @@ def test_report_is_one_a4_page_with_extractable_text(report: dict[str, Any]) -> 
 
 
 def test_report_text_is_not_truncated_for_three_languages(report: dict[str, Any]) -> None:
-    metrics = json.loads(Path(report["metrics_json"]).read_text(encoding="utf-8"))
+    metrics_path = Path(report["report_pdf"]).parent / "metrics.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     assert metrics["report_truncated"] is False
 
 
@@ -108,10 +109,12 @@ def test_pngs_are_not_blank(report: dict[str, Any]) -> None:
 
 def test_compare_contract_paths_exist(report: dict[str, Any]) -> None:
     assert len(report["summary"]) <= 200
-    for key in ("report_pdf", "metrics_json"):
-        path = Path(report[key])
-        assert path.is_absolute()
-        assert path.exists()
+    for key in ("report_pdf", "metrics_json", "report_png", "data_csv"):
+        if key in report:
+            path = Path(report[key])
+            assert path.is_absolute()
+            assert path.exists()
+    assert "caveat" in report
 
 
 def test_report_rebuilds_from_run(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:

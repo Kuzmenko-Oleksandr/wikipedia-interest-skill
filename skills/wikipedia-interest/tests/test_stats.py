@@ -136,6 +136,32 @@ def test_step_is_a_level_shift_not_growth() -> None:
     assert not result.multiple_changepoints
 
 
+def test_step_location_survives_drift_after_the_step() -> None:
+    values = synthetic.with_step(synthetic.flat(), 170, 1.5)
+    values[170:] *= np.exp(np.log(1.08) / 365.25 * np.arange(len(values) - 170))
+    result = analyze(np.round(values))
+    assert result.level_shift
+    assert abs(result.step.day - 170) <= 7
+    assert result.step.ratio == pytest.approx(1.5, rel=0.06)
+
+
+def test_level_shifts_are_neither_invented_nor_missed() -> None:
+    invented = sum(analyze(synthetic.growth(25.0, seed=k)).level_shift for k in range(10))
+    invented += sum(analyze(synthetic.flat(seed=k)).level_shift for k in range(10))
+    found = sum(
+        analyze(synthetic.with_step(synthetic.flat(seed=k), 400, 1.3)).level_shift
+        for k in range(10)
+    )
+    assert invented == 0
+    assert found >= 9
+
+
+def test_step_scan_finds_the_split() -> None:
+    y = np.array([1.0] * 10 + [5.0] * 20)
+    assert stats.step_scan(y) == 10
+    assert stats.step_scan(np.ones(10)) is None
+
+
 def test_linear_growth_is_not_a_level_shift() -> None:
     assert not analyze(synthetic.growth(40.0)).level_shift
 
@@ -186,3 +212,19 @@ def test_strong_seasonality_rarely_reads_as_trend() -> None:
         result = analyze(synthetic.seasonal(0.3, seed=seed))
         false_alarms += result.trend_clean.mk.p < result.alpha or result.level_shift
     assert false_alarms <= 3
+
+
+@pytest.mark.parametrize("scale", [1.0, 1e-3, 1e-6])
+def test_rate_does_not_depend_on_the_unit(scale: float) -> None:
+    # Views per million of a big edition are often far below 1.
+    values = synthetic.growth(30.0) * scale
+    result = TrendAnalyzer().analyze(synthetic.series(values), np.zeros(len(values), dtype=bool))
+    assert result is not None
+    assert result.trend_clean.pct_per_year_log == pytest.approx(30.0, abs=3.0)
+
+
+def test_step_ratio_does_not_depend_on_the_unit() -> None:
+    values = synthetic.with_step(synthetic.flat(), 400, 1.6) * 1e-4
+    result = TrendAnalyzer().analyze(synthetic.series(values), np.zeros(len(values), dtype=bool))
+    assert result is not None
+    assert result.step.ratio == pytest.approx(1.6, rel=0.06)

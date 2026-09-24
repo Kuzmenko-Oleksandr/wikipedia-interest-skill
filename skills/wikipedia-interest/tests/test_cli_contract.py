@@ -147,3 +147,65 @@ def test_module_entry_point_keeps_stdout_clean(tmp_path: Path) -> None:
     assert done.returncode == 0, done.stderr
     assert done.stdout.count("\n") == 1
     assert json.loads(done.stdout)["ok"] is True
+
+
+def test_fixture_can_be_pinned_by_environment(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(cli.FIXTURE_ENV, "demo")
+    payload, code = invoke(capsys, "resolve", "--topic", "Astronomy")
+    assert code == 0
+    assert payload["qid"] == "Q333"
+
+
+def test_summary_names_editions_without_an_article() -> None:
+    from datetime import date
+
+    from wikitrends.analysis import rank
+    from wikitrends.models import DateRange
+    from wikitrends.output import summary
+    from wikitrends.service import CompareRequest, RunResult
+
+    request = CompareRequest(("it",), DateRange(date(2025, 1, 1), date(2025, 12, 31)), topic="X")
+    run = RunResult(request, None, {}, ("it",), rank({}), (), 0, 0)
+    assert summary(run) == "Over 365 days: it no article"
+
+
+def test_line_fits_1kb_with_eight_languages_and_long_paths() -> None:
+    from wikitrends.output import CAVEAT, to_line
+
+    long = "/" + "x" * 200 + "/report.pdf"
+    languages = [
+        {
+            "lang": f"l{i}",
+            "title": "Ж" * 40,
+            "verdict": "no_detectable_trend",
+            "confidence": "medium",
+            "mde_pct_per_year": 12.3,
+            "vpm_median": 123.4,
+            "reach_median": 4321,
+            "flags": ["autocorrelated", "seasonality_suspected", "spike_events"],
+        }
+        for i in range(8)
+    ]
+    payload = {
+        "ok": True,
+        "schema": 1,
+        "slug": "x" * 80,
+        "report_pdf": long,
+        "report_png": long,
+        "charts": [long] * 3,
+        "metrics_json": long,
+        "data_csv": long,
+        "summary": "s" * 200,
+        "languages": languages,
+        "tiers": [[f"l{i}"] for i in range(8)],
+        "caveat": CAVEAT,
+        "warnings": ["w" * 120] * 4,
+        "cache": {"hits": 16, "fetched": 0},
+    }
+    line = to_line(payload)
+    assert len(line.encode()) <= 1024
+    decoded = json.loads(line)
+    assert decoded["report_pdf"] == long
+    assert [entry["verdict"] for entry in decoded["languages"]] == ["no_detectable_trend"] * 8

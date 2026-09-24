@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 
@@ -20,7 +22,9 @@ class FakeClock:
         self.now += seconds
 
 
-def make_transport(handler, clock: FakeClock | None = None) -> WikimediaTransport:
+def make_transport(
+    handler: Callable[[httpx.Request], httpx.Response], clock: FakeClock | None = None
+) -> WikimediaTransport:
     clock = clock or FakeClock()
     client = httpx.Client(
         transport=httpx.MockTransport(handler), headers={"User-Agent": USER_AGENT}

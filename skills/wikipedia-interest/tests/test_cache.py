@@ -1,3 +1,5 @@
+# pyright: reportUnusedParameter=false
+# Fakes keep the protocol signatures even when they ignore an argument.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
