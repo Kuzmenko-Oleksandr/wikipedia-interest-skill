@@ -1,0 +1,99 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      eval:
+        description: Run the Haiku 4.5 eval suite (spends API credits)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: lint, types, tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: skills/wikipedia-interest
+    env:
+      MPLBACKEND: Agg
+      DISPLAY: ""
+      UV_LINK_MODE: copy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --python 3.12
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run basedpyright
+      - run: uv run pytest -q
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl
+
+  bare-container:
+    # No fonts, no display, plain pip from requirements.txt: proves the bundled DejaVu
+    # font and the headless backend are enough on a fresh Linux image.
+    name: tests on python:3.12-slim (no fonts, pip only)
+    runs-on: ubuntu-latest
+    container: python:3.12-slim
+    defaults:
+      run:
+        working-directory: skills/wikipedia-interest
+    env:
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: /tmp/mpl
+    steps:
+      - uses: actions/checkout@v4
+      - run: test -z "$(fc-list 2>/dev/null)" && echo "no system fonts"
+      - run: pip install --no-cache-dir -r requirements.txt pytest pypdf
+      - run: python -m pytest -q
+      - name: CLI answers offline with one JSON line
+        run: |
+          out=$(sh scripts/wikitrends compare --offline-fixture demo --topic Astronomy \
+                --langs uk,pl,cs --out-dir /tmp/out)
+          echo "$out"
+          test "$(printf '%s\n' "$out" | wc -l)" -eq 1
+          printf '%s' "$out" | python -c "import json,sys; assert json.load(sys.stdin)['ok']"
+
+  eval:
+    # Uses the synthetic fixture (planted answers, no Wikimedia traffic), so results are
+    # reproducible and the 10 requests/minute limit does not apply.
+    if: github.event_name == 'workflow_dispatch' && inputs.eval
+    needs: checks
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      UV_LINK_MODE: copy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap socat
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Dependencies inside the skill, where scripts/wikitrends looks for them
+        working-directory: skills/wikipedia-interest
+        run: uv sync --locked --python 3.12 --no-dev
+      - name: Eval on Haiku 4.5, judged by Sonnet 5
+        working-directory: skills/wikipedia-interest
+        run: |
+          claude plugin eval . --tag fixture --trust-plugin --allow-tools Bash \
+            --model claude-haiku-4-5 --judge-model claude-sonnet-5 --runs 3 \
+            --threshold 0.8 --json results.json --no-publish --max-cost-usd 20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: skills/wikipedia-interest/results.json
