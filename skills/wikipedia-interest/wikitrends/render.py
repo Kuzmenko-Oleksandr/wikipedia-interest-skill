@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -28,6 +28,18 @@ from .analysis import LanguageResult
 from .series import rolling_median
 from .service import RunResult
 from .verdict import Verdict
+
+__all__ = [
+    "CHART_FILES",
+    "MAX_COLOURS",
+    "draw_normalized",
+    "draw_ranking",
+    "draw_timeseries",
+    "palette",
+    "plt",
+    "save_charts",
+    "style",
+]
 
 # Okabe-Ito: distinguishable under all three common colour-vision deficiencies.
 OKABE_ITO = (
@@ -61,7 +73,7 @@ CHART_FILES = ("chart-timeseries.png", "chart-normalized.png", "chart-ranking.pn
 
 
 @contextmanager
-def style() -> Iterator[None]:
+def style() -> Generator[None]:
     """Explicit style so a user matplotlibrc cannot swap in a font without Cyrillic."""
     with plt.rc_context(STYLE):
         yield
@@ -115,6 +127,15 @@ def _panels(fig: Figure, spec: SubplotSpec, count: int) -> list[Axes]:
     return [
         fig.add_subplot(grid[i // MULTIPLE_COLUMNS, i % MULTIPLE_COLUMNS]) for i in range(count)
     ]
+
+
+def _chart_title(fig: Figure, spec: SubplotSpec, axes: list[Axes], title: str, pad: float) -> None:
+    """On a shared axes the axes title; over small multiples a label above the grid."""
+    if len(set(map(id, axes))) == 1:
+        axes[0].set_title(title, loc="left", pad=pad)
+        return
+    box = spec.get_position(fig)
+    fig.text(box.x0, box.y1 + 0.012, title, fontsize=9, weight="bold", va="bottom")
 
 
 def draw_timeseries(fig: Figure, spec: SubplotSpec, run: RunResult) -> None:
@@ -171,7 +192,7 @@ def draw_timeseries(fig: Figure, spec: SubplotSpec, run: RunResult) -> None:
             arrowprops={"arrowstyle": "-", "lw": 0.6, "color": GREY},
         )
     title = "Daily views (thin) and 7-day median (bold); circles mark spikes"
-    axes[0].set_title(title, loc="left", pad=pad)
+    _chart_title(fig, spec, axes, title, pad)
 
 
 def draw_normalized(fig: Figure, spec: SubplotSpec, run: RunResult) -> None:
@@ -201,7 +222,7 @@ def draw_normalized(fig: Figure, spec: SubplotSpec, run: RunResult) -> None:
         ax.set_ylabel("per million edition views")
         _date_axis(ax, run.request.span.days, max_ticks=4)
         pad = _legend_above(ax, len(results), 6)
-    ax.set_title("Views per million edition views (7-day median)", loc="left", pad=pad)
+    _chart_title(fig, spec, axes, "Views per million edition views (7-day median)", pad)
 
 
 def _momentum(result: LanguageResult) -> str:

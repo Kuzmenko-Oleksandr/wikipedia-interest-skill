@@ -6,4 +6,8 @@ python=python3
 if [ -x "$skill_dir/.venv/bin/python" ]; then
     python="$skill_dir/.venv/bin/python"
 fi
+# Some sandboxes hand over a directory as stdin and Python refuses to start; the CLI never reads it.
+if [ -d /dev/stdin ]; then
+    exec 0<&-
+fi
 PYTHONPATH="$skill_dir${PYTHONPATH:+:$PYTHONPATH}" exec "$python" -m wikitrends "$@"

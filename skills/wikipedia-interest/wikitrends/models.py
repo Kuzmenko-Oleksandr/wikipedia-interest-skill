@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import override
 
 # Earliest day served by the pageviews API (verified by probing).
 DATA_FLOOR = date(2015, 7, 1)
@@ -63,6 +64,7 @@ class Article:
     def api_title(self) -> str:
         return self.title.replace(" ", "_")
 
+    @override
     def __str__(self) -> str:
         return f"{self.lang}:{self.title}"
 

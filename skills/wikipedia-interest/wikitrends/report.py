@@ -20,7 +20,15 @@ from matplotlib.transforms import Bbox
 
 from . import __version__, narrative
 from .analysis import LanguageResult
-from .render import draw_normalized, draw_ranking, draw_timeseries, plt, save_charts, style
+from .render import (
+    MAX_COLOURS,
+    draw_normalized,
+    draw_ranking,
+    draw_timeseries,
+    plt,
+    save_charts,
+    style,
+)
 from .service import RunResult
 
 A4_INCHES = (8.27, 11.69)
@@ -41,6 +49,8 @@ LINE_HEIGHT_EM = 1.02
 # Share of the measured line width to use; long words must not spill into the next column.
 WRAP_SLACK = 0.9
 TITLE_CHARS = 28
+MAX_TABLE_ROWS = 10
+MIN_FINDINGS_INCHES = 0.4
 COLUMNS = ("Lang", "Article", "Verdict", "Conf.", "Change per year", "Views/day", "Per million")
 COLUMN_WIDTHS = (0.06, 0.24, 0.2, 0.08, 0.18, 0.12, 0.12)
 CUT_NOTE = "… (cut to fit one page; the full text is in metrics.json)"
@@ -66,6 +76,8 @@ def _change(result: LanguageResult) -> str:
         return f"{_signed(a.pct_per_year)}% ({_signed(low)} to {_signed(high)})"
     if a.step_ratio is not None:
         return f"step x{a.step_ratio:.2f}"
+    if a.level_shift:
+        return "step (size withheld)"
     if a.mde_pct_per_year is not None:
         return f"MDE ±{a.mde_pct_per_year:.0f}%"
     return "-"
@@ -91,6 +103,9 @@ def table_rows(run: RunResult) -> list[list[str]]:
             ]
         )
     rows += [[lang, "-", "no article", "-", "-", "-", "-"] for lang in run.missing]
+    if len(rows) > MAX_TABLE_ROWS:
+        hidden = len(rows) - MAX_TABLE_ROWS + 1
+        rows = [*rows[: MAX_TABLE_ROWS - 1], ["…", f"+{hidden} more in metrics.json", *"-----"]]
     return rows
 
 
@@ -198,11 +213,10 @@ class ReportBuilder:
     def _page(self, fig: Figure, run: RunResult, metrics: dict[str, Any]) -> bool:
         layout = PageLayout(fig)
         self._header(fig.add_axes(layout.band(HEADER_INCHES, 0.1)), run, metrics)
-        legend_rows = math.ceil(len(run.results) / 4)
-        layout.band(0.12 + 0.14 * legend_rows)
+        layout.band(self._legend_inches(run, 4))
         c1 = fig.add_gridspec(1, 1, **self._edges(layout.band(C1_INCHES, 0.62)))
         draw_timeseries(fig, c1[0], run)
-        layout.band(0.12 + 0.14 * math.ceil(len(run.results) / 6))
+        layout.band(self._legend_inches(run, 6))
         c23 = fig.add_gridspec(1, 2, **self._edges(layout.band(C2_INCHES, 0.5)), wspace=0.45)
         draw_normalized(fig, c23[0], run)
         draw_ranking(fig, c23[1], run)
@@ -211,10 +225,21 @@ class ReportBuilder:
         findings_inches = layout.remaining - LIMITS_INCHES - 0.1
         findings = [f"• {line}" for line in metrics["conclusions"]]
         findings += [f"• Note: {warning}" for warning in metrics["warnings"]]
-        cut = TextBox(fig.add_axes(layout.band(findings_inches, 0.1)), FINDINGS_FONT).write(
-            "Findings", findings
-        )
+        if findings_inches < MIN_FINDINGS_INCHES:
+            # No room left: the findings stay in metrics.json and the answer.
+            cut = True
+        else:
+            box = fig.add_axes(layout.band(findings_inches, 0.1))
+            cut = TextBox(box, FINDINGS_FONT).write("Findings", findings)
         return cut | self._limitations(fig, layout, metrics["limitations"])
+
+    @staticmethod
+    def _legend_inches(run: RunResult, columns: int) -> float:
+        """Room for a legend above a shared chart; small multiples label their panels."""
+        count = len(run.results)
+        if count > MAX_COLOURS:
+            return 0.12
+        return 0.12 + 0.14 * math.ceil(count / columns)
 
     @staticmethod
     def _edges(rect: tuple[float, float, float, float]) -> dict[str, float]:

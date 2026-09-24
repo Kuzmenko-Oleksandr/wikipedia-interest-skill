@@ -20,6 +20,7 @@ from .series import DailySeries
 log = logging.getLogger(__name__)
 
 MAX_REDIRECTS = 10
+NO_TITLES: frozenset[str] = frozenset()
 SLUG_TITLE_CHARS = 40
 
 _CYRILLIC = (
@@ -165,7 +166,7 @@ class InterestService:
         warnings: list[str] = []
         views = {}
         for lang, article in sorted(resolution.articles.items()):
-            views[lang] = self._views(article, request, warnings)
+            views[lang], _ = self._views(article, request, warnings)
             self._total(lang, request.span)
         return resolution, views
 
@@ -193,7 +194,7 @@ class InterestService:
         self, article: Article, request: CompareRequest, warnings: list[str]
     ) -> LanguageResult:
         total = self._total(article.lang, request.span)
-        views = self._views(article, request, warnings)
+        views, summed = self._views(article, request, warnings)
         result = self._analyzer.analyze(article, views, total)
         if any(f.gate == "G7_end_collapse" for f in result.gates.findings):
             moved = self._pages.canonical(article.lang, article.title)
@@ -203,28 +204,37 @@ class InterestService:
                     f"{article.lang}: {article.title!r} was renamed to {moved.title!r}; "
                     "both titles were combined."
                 )
-                views = views.plus(self._views(moved, request, warnings))
-                result = self._analyzer.analyze(moved, views, total)
+                # The old title is now a redirect of the new one; never count it twice.
+                extra, _ = self._views(moved, request, warnings, exclude=summed)
+                result = self._analyzer.analyze(moved, views.plus(extra), total)
         return result
 
     def _total(self, lang: str, span: DateRange) -> DailySeries:
         counts = self._pageviews.project_daily(lang, span)
         return DailySeries.from_counts(counts, span, self._pageviews.traffic)
 
-    def _views(self, article: Article, request: CompareRequest, warnings: list[str]) -> DailySeries:
-        span = request.span
-        series = self._series(article, span)
-        if not request.include_redirects:
-            return series
-        redirects = self._pages.redirects_to(article)
-        if len(redirects) > MAX_REDIRECTS:
-            warnings.append(
-                f"{article.lang}: summed {MAX_REDIRECTS} of {len(redirects)} redirects "
-                "to stay within the rate limit."
-            )
-        for title in redirects[:MAX_REDIRECTS]:
-            series = series.plus(self._series(Article(article.lang, title), span))
-        return series
+    def _views(
+        self,
+        article: Article,
+        request: CompareRequest,
+        warnings: list[str],
+        exclude: frozenset[str] = NO_TITLES,
+    ) -> tuple[DailySeries, frozenset[str]]:
+        """Views of the article, plus its redirects if asked; also the titles summed."""
+        titles = [article.title]
+        if request.include_redirects:
+            redirects = self._pages.redirects_to(article)
+            if len(redirects) > MAX_REDIRECTS:
+                warnings.append(
+                    f"{article.lang}: summed {MAX_REDIRECTS} of {len(redirects)} redirects "
+                    "to stay within the rate limit."
+                )
+            titles += redirects[:MAX_REDIRECTS]
+        titles = [title for title in titles if title not in exclude]
+        series = DailySeries.from_counts({}, request.span, self._pageviews.traffic)
+        for title in titles:
+            series = series.plus(self._series(Article(article.lang, title), request.span))
+        return series, frozenset(titles) | exclude
 
     def _series(self, article: Article, span: DateRange) -> DailySeries:
         counts = self._pageviews.article_daily(article, span)

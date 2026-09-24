@@ -24,7 +24,7 @@ def _fail(error: str) -> NoReturn:
 
 # Runs exactly when requires-python was not honoured, e.g. a bare python3 of 3.11.
 if sys.version_info < (3, 12):  # noqa: UP036
-    _fail(f"Python 3.12+ is required, this is {sys.version.split()[0]}")
+    _fail(f"Python 3.12+ is required, this is {sys.version.split()[0]}")  # pyright: ignore[reportUnreachable]
 
 try:
     from wikitrends.cli import main

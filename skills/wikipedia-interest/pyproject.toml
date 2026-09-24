@@ -28,6 +28,19 @@ dummy-variable-rgx = "^_$"
 pythonVersion = "3.12"
 include = ["wikitrends", "tests"]
 typeCheckingMode = "recommended"
+# numpy scalars, JSON payloads and matplotlib's partial stubs are Any or unknown by
+# nature; these rules would flag the libraries rather than this code.
+reportAny = "none"
+reportExplicitAny = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownLambdaType = "none"
+# Idioms used on purpose: ignoring ax.plot() results, implicit concatenation of long
+# messages, attributes typed by their constructor argument.
+reportUnusedCallResult = "none"
+reportImplicitStringConcatenation = "none"
+reportUnannotatedClassAttribute = "none"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
