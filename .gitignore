@@ -7,3 +7,6 @@ out/
 *.egg-info/
 .DS_Store
 .idea/
+# claude plugin eval output
+evals/results/
+results.json

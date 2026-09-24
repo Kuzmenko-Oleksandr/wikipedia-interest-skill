@@ -1,0 +1,17 @@
+{
+  "name": "wikipedia-interest-skill",
+  "owner": {"name": "Kuzmenko-Oleksandr"},
+  "metadata": {
+    "description": "Wikipedia pageview interest analysis",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "wikipedia-interest",
+      "description": "Analyze and compare topic interest across Wikipedia language editions",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/wikipedia-interest"]
+    }
+  ]
+}

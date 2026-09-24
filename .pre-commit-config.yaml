@@ -1,0 +1,16 @@
+# Same checks as `make lint` in skills/wikipedia-interest; run through uv so versions match uv.lock.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: sh -c 'cd skills/wikipedia-interest && uv run ruff check .'
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: sh -c 'cd skills/wikipedia-interest && uv run ruff format --check .'
+        language: system
+        pass_filenames: false
+        types: [python]
