@@ -4,11 +4,12 @@
 
 Every command prints exactly one JSON line (at most 1 KB) and nothing else on stdout.
 Logs go to stderr. When the line would exceed 1 KB, fields are dropped in this order:
-per-language `title`, `flags`, `reason`, `charts`, `report_png`, `data_csv`, all but one warning,
-`reach_median`, `vpm_median`, `cache`, `metrics_json` (only when `report_pdf` is present:
-it sits in the same folder), `warnings`, `tiers`, then per-language `mde_pct_per_year`,
-`step_ratio`, `step_date`, `pct_per_year` and `confidence` (the `summary` still carries
-the verdicts), and finally `caveat`. Everything dropped is still in `metrics.json`.
+`charts`, `report_png`, `data_csv` (all in the folder of `report_pdf`), per-language
+`title`, all but one warning, `cache`, `metrics_json` (only when `report_pdf` is present:
+it sits in the same folder), per-language `flags`, `reach_median`, `vpm_median`, then
+`warnings`, `tiers`, per-language `mde_pct_per_year`, `step_ratio`, `step_date`,
+`pct_per_year`, `confidence` (the `summary` still carries the verdicts) and `reason`,
+and finally `caveat`. Everything dropped is still in `metrics.json`.
 
 ### compare / analyze / report
 
@@ -105,7 +106,8 @@ diagnostic rates are not claims, for example a rate whose interval covers zero.
 
 1. Start from the verdicts and confidence of the languages that passed the gates.
 2. For "which language": the highest tier by share of attention, then audience size,
-   then momentum. Say when the top languages are in the same tier.
+   then momentum (a `growing` or `declining` trend only; a level shift is not momentum).
+   Say when the top languages are in the same tier.
 3. For "is it growing": the verdict, the rate with its window, and the confidence.
 4. Add one limitation that matters for the decision (usually: pageviews are attention,
    not demand; or one article per language).

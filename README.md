@@ -130,7 +130,7 @@ clock, so a rerun overwrites instead of piling up.
 
 The code was written with AI assistance. Nothing below takes the model's word for it.
 
-**Known-answer tests (161, `make test`).** Hand-computed examples that pin each formula:
+**Known-answer tests (162, `make test`).** Hand-computed examples that pin each formula:
 Mann-Kendall on `[1, 3, 2, 1]` must give `S = −1`, `Var(S) = 7.667`, `Z = 0` (8.667 means
 the tie correction is missing, −0.361 means the continuity correction is missing); Pettitt
 on `[1, 2, 3, 10, 11, 12]` must split at index 3 with `p = 0.291`. Synthetic series with a
@@ -189,6 +189,14 @@ Getting there took several rounds, and the misses are the useful part:
    0 times out of 3: Haiku asked which languages first. The description now says to use
    the skill anyway, since it can list the editions itself. Final round: 17/18 triggers
    and 15/15 rubric passes.
+4. Two prompts the skill was never tuned on (which language to localize a course into; a
+   question naming no languages) exposed a defect in the tool, not the model: near the
+   1 KB limit the line dropped a refusal's `reason` and the audience size before the chart
+   paths the agent never opens. Haiku filled the gap by calling the share of attention
+   "absolute" views and a one-off step "growing demand"; `SKILL.md` also told it to read
+   every verdict as momentum. Paths are now shed first and only a trend counts as
+   momentum. Afterwards every Czech refusal said that low traffic says nothing about
+   interest, and none of 5 localization answers called the step growth or demand.
 
 **Independent code review.** A separate agent reviewed the package for correctness bugs
 and had to reproduce every finding with a probe script before reporting it. It found 11;

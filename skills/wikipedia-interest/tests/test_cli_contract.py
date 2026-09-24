@@ -171,6 +171,22 @@ def test_summary_names_editions_without_an_article() -> None:
     assert summary(run) == "Over 365 days: it no article"
 
 
+def test_refusal_reason_and_audience_outlive_file_paths(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    # A Haiku run lost the reason to shedding while chart paths survived.
+    out = str(tmp_path / ("haiku-insufficient-data-" + "x" * 40) / "out")
+    refused, _ = invoke(
+        capsys, "compare", *DEMO, "--topic", "Astronomy", "--langs", "cs", "--out-dir", out
+    )
+    assert "says nothing about interest" in refused["languages"][0]["reason"]
+    compared, _ = invoke(
+        capsys, "compare", *DEMO, "--topic", "Astronomy", "--langs", "de,en,fr", "--out-dir", out
+    )
+    assert all({"vpm_median", "reach_median"} <= set(e) for e in compared["languages"])
+    assert "report_pdf" in refused and "report_pdf" in compared
+
+
 def test_line_fits_1kb_with_eight_languages_and_long_paths() -> None:
     from wikitrends.output import CAVEAT, to_line
 

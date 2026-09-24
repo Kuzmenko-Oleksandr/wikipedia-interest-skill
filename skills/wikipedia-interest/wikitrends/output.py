@@ -255,18 +255,19 @@ def _trim_warnings(payload: Payload) -> None:
 
 
 # Least useful first; the verdicts, summary and report path survive the longest.
+# Files the agent never opens go first: they sit next to report.pdf anyway. A refusal's
+# reason goes last but one: without it small models read low traffic as low interest.
 _SHEDDING: Sequence[Callable[[Payload], None]] = (
-    _drop_language_key("title"),
-    _drop_language_key("flags"),
-    _drop_language_key("reason"),
     _drop("charts"),
     _drop("report_png"),
     _drop("data_csv"),
+    _drop_language_key("title"),
     _trim_warnings,
-    _drop_language_key("reach_median"),
-    _drop_language_key("vpm_median"),
     _drop("cache"),
     _drop_metrics_path,
+    _drop_language_key("flags"),
+    _drop_language_key("reach_median"),
+    _drop_language_key("vpm_median"),
     _drop("warnings"),
     _drop("tiers"),
     _drop_language_key("mde_pct_per_year"),
@@ -274,6 +275,7 @@ _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop_language_key("step_date"),
     _drop_language_key("pct_per_year"),
     _drop_language_key("confidence"),
+    _drop_language_key("reason"),
     _drop("caveat"),
     _essentials,
 )

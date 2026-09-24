@@ -43,7 +43,8 @@ Follow these steps in order. All numbers come from the script; never compute the
    - a line starting "Limitations:" with the `caveat` text, always, even when
      `warnings` add other notes.
 7. Base every recommendation on a verdict and its confidence. Say which language or
-   topic the data favours and why, in one or two sentences.
+   topic the data favours and why, in one or two sentences. A level shift or a rise
+   from spikes is not momentum: never call it growth or rising demand, here either.
 
 ## Running the script
 
@@ -136,7 +137,8 @@ comparable across languages; `reach_median` is typical daily views; `summary` is
 4. Then run `compare --titles <titles_arg from resolve, trimmed to the chosen languages>`.
 
 For "which language should we localize into": rank by `vpm_median` (share of attention),
-break ties by `reach_median` (audience size), and mention the verdict as momentum. Treat
+break ties by `reach_median` (audience size). Only `growing` or `declining` is momentum; a
+level shift is a one-off change that says nothing about where views are heading. Treat
 languages in the same inner list of `tiers` as statistically indistinguishable.
 
 ## Failure modes
@@ -164,6 +166,7 @@ Do not retry more than once. Do not edit files in this skill.
 | "There is no trend" | "No trend detected; changes under ±MDE %/yr would not have been visible." |
 | "Event Z caused the rise" | "The rise coincides with Z on <date>; causality is not established." |
 | "Language A is more interested than B" (raw views) | "A gets N× the views of B; per million edition views the ratio is r." |
+| `vpm_median` as absolute views or audience size | "N views per million edition views (share of attention)"; audience size is `reach_median`. |
 | Any percentage when `pct_per_year` is absent | The direction only. |
 
 Always mention: pageviews measure attention, not demand; one article per language;
