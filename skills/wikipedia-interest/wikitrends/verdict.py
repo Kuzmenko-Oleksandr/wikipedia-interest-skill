@@ -92,10 +92,17 @@ class Assessment:
     basis_movement: int = 0
 
     @property
+    def level_shift(self) -> bool:
+        return self.verdict in (Verdict.LEVEL_SHIFT_UP, Verdict.LEVEL_SHIFT_DOWN)
+
+    @property
     def step_ratio(self) -> float | None:
-        if self.verdict in (Verdict.LEVEL_SHIFT_UP, Verdict.LEVEL_SHIFT_DOWN) and self.headline:
-            return self.headline.step.ratio
-        return None
+        """Size of a level shift; withheld where only the direction may be reported."""
+        if not self.level_shift or self.headline is None:
+            return None
+        if any(flag in self.flags for flag in PERCENT_SUPPRESSORS):
+            return None
+        return self.headline.step.ratio
 
 
 def within_stable_band(fit: TrendFit) -> bool:
@@ -129,7 +136,9 @@ class VerdictRules:
         spikes: SpikeScan,
         raw: SeriesAnalysis | None,
         normalized: SeriesAnalysis | None,
+        vpm_failed: bool = False,
     ) -> Assessment:
+        """`vpm_failed`: an edition total existed but too little of it was usable."""
         basis = Basis.VPM if normalized is not None else Basis.RAW
         blocking = self._blocking(gates)
         if blocking is not None:
@@ -138,6 +147,8 @@ class VerdictRules:
         if headline is None or raw is None:
             return refusal(_few_weeks(), basis)
         flags = list(gates.flags)
+        if vpm_failed:
+            flags.append("vpm_suppressed")
         verdict = self._verdict(headline, bool(spikes.events), flags)
         flags += self._analysis_flags(headline, raw, normalized)
         if spikes.events:

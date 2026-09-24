@@ -83,7 +83,9 @@ class LanguageAnalyzer:
             spikes=spikes,
             raw=raw,
             normalized=normalized,
-            assessment=self._rules.assess(report, spikes, raw, normalized),
+            assessment=self._rules.assess(
+                report, spikes, raw, normalized, vpm_failed=vpm is not None and normalized is None
+            ),
             reach=Interval.median_of(views),
             penetration=Interval.median_of(vpm) if vpm is not None else None,
         )

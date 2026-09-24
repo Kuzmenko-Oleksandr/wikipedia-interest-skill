@@ -15,7 +15,7 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 
-from .series import DailySeries, FloatArray, WeeklySeries, rolling_median
+from .series import WEEK, DailySeries, FloatArray, WeeklySeries, rolling_median
 
 BoolArray = NDArray[np.bool_]
 
@@ -46,6 +46,7 @@ WEEKDAY_WINDOW = 7
 YEAR_WEEKS = 53
 SEASONAL_PASSES = 3
 ANNUAL_BASELINE_DAYS = 730
+LOG_OFFSET_SHARE = 0.01
 
 
 def z_crit(alpha: float) -> float:
@@ -59,7 +60,7 @@ def two_sided_p(z: float) -> float:
 
 
 def annualize(log_slope: float) -> float:
-    """Per-day slope of log1p(views) to percent change per year."""
+    """Per-day slope of the log series to percent change per year."""
     return 100 * math.expm1(DAYS_PER_YEAR * log_slope)
 
 
@@ -357,10 +358,35 @@ def _group_medians(values: FloatArray, groups: NDArray[np.int64], size: int) -> 
     return out - out.mean()
 
 
+@dataclass(frozen=True, slots=True)
+class LogScale:
+    """log(y + c) with c one percent of the series' typical value.
+
+    log1p adds 1 whatever the unit. Views per million are often below 1, and there it
+    flattens every rate: +30%/yr read as +9% at 0.4 per million. An offset relative to the
+    series keeps rates comparable between raw views and shares and still admits zeros.
+    """
+
+    offset: float
+
+    @classmethod
+    def of(cls, values: FloatArray) -> LogScale:
+        positive = values[np.nan_to_num(values, nan=0.0) > 0]
+        typical = float(np.median(positive)) if positive.size else 1.0
+        return cls(max(LOG_OFFSET_SHARE * typical, 1e-12))
+
+    def log(self, values: FloatArray) -> FloatArray:
+        return np.log(values + self.offset)
+
+    def exp(self, logs: FloatArray) -> FloatArray:
+        return np.exp(logs) - self.offset
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Seasonality:
-    """Additive offsets on the log1p scale; `month` is None without two full years."""
+    """Additive offsets on the log scale; `month` is None without two full years."""
 
+    scale: LogScale
     weekday: FloatArray
     month: FloatArray | None = None
 
@@ -371,7 +397,8 @@ class Seasonality:
         return out
 
     def remove(self, series: DailySeries) -> DailySeries:
-        return series.replace(np.expm1(np.log1p(series.values) - self.offsets(series.dates)))
+        logs = self.scale.log(series.values) - self.offsets(series.dates)
+        return series.replace(self.scale.exp(logs))
 
     @property
     def month_amplitude(self) -> float:
@@ -379,14 +406,15 @@ class Seasonality:
         return math.expm1(float(np.ptp(self.month))) if self.month is not None else 0.0
 
 
-def estimate_seasonality(series: DailySeries) -> Seasonality:
+def estimate_seasonality(series: DailySeries, scale: LogScale | None = None) -> Seasonality:
     """Weekday offsets always; month offsets only when each month is seen twice."""
-    logs = np.log1p(series.values)
+    scale = scale or LogScale.of(series.values)
+    logs = scale.log(series.values)
     weekday_of = _weekday(series.dates)
-    local = np.log1p(rolling_median(series.values, WEEKDAY_WINDOW))
+    local = scale.log(rolling_median(series.values, WEEKDAY_WINDOW))
     weekday = _group_medians(logs - local, weekday_of, 7)
     if len(series) < ANNUAL_BASELINE_DAYS:
-        return Seasonality(weekday)
+        return Seasonality(scale, weekday)
     weekly = series.replace(logs - weekday[weekday_of]).weekly()
     months = _month(series.dates[weekly.t.astype(np.int64)])
     month = np.zeros(12)
@@ -396,7 +424,7 @@ def estimate_seasonality(series: DailySeries) -> Seasonality:
         # re-fits it on the adjusted series, shrinking the bias of the partial-year edges.
         level = rolling_median(weekly.values - month[months], YEAR_WEEKS)
         month = _group_medians(weekly.values - level, months, 12)
-    return Seasonality(weekday, month)
+    return Seasonality(scale, weekday, month)
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,16 +455,17 @@ class TrendFit:
 
     @property
     def direction(self) -> int:
-        return int(np.sign(self.log.slope))
+        # With heavy ties the median slope can be exactly 0 while S is clearly signed.
+        return int(np.sign(self.log.slope)) or int(np.sign(self.mk.s))
 
 
-def fit_trend(weekly: WeeklySeries, mid: float, alpha: float) -> TrendFit:
+def fit_trend(weekly: WeeklySeries, mid: float, alpha: float, scale: LogScale) -> TrendFit:
     t, y = weekly.points()
     linear = theil_sen(t, y, alpha)
     return TrendFit(
         n_weeks=len(t),
         linear=linear,
-        log=theil_sen(t, np.log1p(y), alpha),
+        log=theil_sen(t, scale.log(y), alpha),
         mk=mann_kendall(y),
         level_mid=linear.at(mid),
     )
@@ -444,7 +473,10 @@ def fit_trend(weekly: WeeklySeries, mid: float, alpha: float) -> TrendFit:
 
 @dataclass(frozen=True, slots=True)
 class StepModel:
-    """Two-level model at the Pettitt split, compared with the linear trend."""
+    """Two-level model at the scanned split, compared with the linear trend.
+
+    `day` is the first day of the first week at the new level.
+    """
 
     day: int
     ratio: float
@@ -458,6 +490,25 @@ class StepModel:
         return self.long_enough and self.residual < STEP_MARGIN * self.linear_residual
 
 
+def step_scan(y: FloatArray, min_segment: int = MIN_SEGMENT_WEEKS) -> int | None:
+    """Split that minimizes absolute deviation from the two segment medians.
+
+    Pettitt's statistic keeps growing past a step when the later segment drifts, so it
+    only supplies the significance; this scan supplies the location and the size.
+
+    Returns:
+        First index of the second segment, or None when either would be too short.
+    """
+    splits = range(min_segment, len(y) - min_segment + 1)
+    if not splits:
+        return None
+    costs = [
+        float(np.abs(y[:k] - np.median(y[:k])).sum() + np.abs(y[k:] - np.median(y[k:])).sum())
+        for k in splits
+    ]
+    return splits[int(np.argmin(costs))]
+
+
 def fit_step(t: FloatArray, y: FloatArray, split: int, linear: Slope) -> StepModel:
     """Compares a one-step model with the linear fit by median absolute residual."""
     before, after = y[:split], y[split:]
@@ -465,7 +516,7 @@ def fit_step(t: FloatArray, y: FloatArray, split: int, linear: Slope) -> StepMod
     level_after = float(np.median(after)) if after.size else math.nan
     fitted = np.where(np.arange(len(y)) < split, level_before, level_after)
     return StepModel(
-        day=int(t[min(split, len(t) - 1)]),
+        day=max(int(t[min(split, len(t) - 1)]) - WEEK // 2, 0),
         ratio=math.exp(level_after - level_before),
         residual=_median_abs(y - fitted),
         linear_residual=_median_abs(y - (linear.intercept + linear.slope * t)),
@@ -522,25 +573,27 @@ class TrendAnalyzer:
             None when fewer than `min_weeks` complete weeks remain.
         """
         clean = series.masked(anomalies)
-        seasonality = estimate_seasonality(clean)
+        scale = LogScale.of(clean.values)
+        seasonality = estimate_seasonality(clean, scale)
         weekly_all = seasonality.remove(series).weekly()
         weekly_clean = seasonality.remove(clean).weekly()
         if min(weekly_all.n_valid, weekly_clean.n_valid) < self._min_weeks:
             return None
         mid = (len(series) - 1) / 2
         alpha = self._alpha
-        trend_clean = fit_trend(weekly_clean, mid, alpha)
+        trend_clean = fit_trend(weekly_clean, mid, alpha, scale)
         t, y = weekly_clean.points()
-        log_y = np.log1p(y)
+        log_y = scale.log(y)
         rho = lag1_autocorrelation(log_y - (trend_clean.log.intercept + trend_clean.log.slope * t))
         if rho > AUTOCORR_LIMIT:
             # Autocorrelated weeks overstate significance; demand stronger evidence.
             alpha = min(alpha, STRICT_ALPHA)
-            trend_clean = fit_trend(weekly_clean, mid, alpha)
+            trend_clean = fit_trend(weekly_clean, mid, alpha, scale)
         changepoint = pettitt(log_y)
-        step = fit_step(t, log_y, changepoint.index, trend_clean.log)
+        split = step_scan(log_y)
+        step = fit_step(t, log_y, changepoint.index if split is None else split, trend_clean.log)
         return SeriesAnalysis(
-            trend_all=fit_trend(weekly_all, mid, alpha),
+            trend_all=fit_trend(weekly_all, mid, alpha, scale),
             trend_clean=trend_clean,
             alpha=alpha,
             autocorrelation=rho,

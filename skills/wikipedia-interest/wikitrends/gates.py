@@ -121,8 +121,9 @@ def low_volume(ctx: GateContext) -> Finding | None:
         return Finding(
             "G1_low_volume",
             Severity.STOP,
-            f"Median {median:.0f} views/day is below {STOP_MEDIAN}: "
-            "too little traffic to measure a trend.",
+            f"Median {median:.0f} views/day is below {STOP_MEDIAN}: too little traffic on "
+            "this article to measure a trend. It says nothing about interest in the topic, "
+            "which may sit under other articles.",
         )
     if median < DIRECTION_ONLY_MEDIAN:
         return Finding(
@@ -278,7 +279,9 @@ def many_zeros(ctx: GateContext) -> Finding | None:
 def denominator_gaps(ctx: GateContext) -> Finding | None:
     if ctx.total is None:
         return None
-    share = (len(ctx.total) - ctx.total.n_observed) / len(ctx.total)
+    # A zero edition total is an outage, not a real day: it would divide by zero.
+    usable = np.nan_to_num(ctx.total.values, nan=0.0) > 0
+    share = float(np.count_nonzero(~usable)) / len(ctx.total)
     if share > MAX_DENOMINATOR_MISSING:
         return Finding(
             "G10_denominator_gaps",
