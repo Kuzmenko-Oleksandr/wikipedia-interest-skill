@@ -1,0 +1,34 @@
+[project]
+name = "wikitrends"
+version = "0.1.0"
+description = "Wikipedia pageview interest analysis for the wikipedia-interest agent skill"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = ["httpx==0.28.1", "matplotlib==3.11.2", "numpy==2.5.3"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pypdf>=5",
+    "ruff>=0.6",
+    "basedpyright>=1.40.1",
+    "pre-commit>=4.6.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+# Only a bare "_" is a throwaway, so F811 still covers private helpers.
+dummy-variable-rgx = "^_$"
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+include = ["wikitrends", "tests"]
+typeCheckingMode = "recommended"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
