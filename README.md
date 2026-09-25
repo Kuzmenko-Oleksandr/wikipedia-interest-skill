@@ -1,5 +1,7 @@
 # wikipedia-interest
 
+**English** | [Українська](README.uk.md)
+
 An [Agent Skill](https://agentskills.io/specification) that answers questions like
 
 - "Compare the growth of interest in intermittent fasting on Polish and Czech Wikipedia over two years."
@@ -16,9 +18,100 @@ The skill lives in [`skills/wikipedia-interest/`](skills/wikipedia-interest/):
 [`SKILL.md`](skills/wikipedia-interest/SKILL.md) for the agent, the `wikitrends` Python
 package for all logic, `references/` for details loaded on demand.
 
-## Install
+## Quick start: ask in plain words
 
-As a Claude Code plugin:
+No coding. You type a question, Claude downloads the data, runs the analysis and answers,
+with a PDF report.
+
+### What you need (once)
+
+1. **Claude Code**, the desktop app or the `claude` command in a terminal, signed in:
+   <https://claude.com/claude-code>. Codex and other agents work too, see
+   [Other agents](#other-agents).
+2. **Python 3.12 or newer.** In a terminal type `python3.12 --version`, then
+   `python3.13 --version`. If one of them prints a version, you are ready. If both say
+   "command not found", install Python from <https://www.python.org/downloads/>. On a Mac
+   the built-in `python3` is 3.9: that is fine, it is simply not used.
+3. **Internet access.** The data come from wikimedia.org.
+
+### Steps
+
+1. **Get the project.** In a terminal:
+
+   ```bash
+   git clone https://github.com/Kuzmenko-Oleksandr/wikipedia-interest-skill.git
+   ```
+
+   Or, without git: on the GitHub page press **Code → Download ZIP** and unpack it; the
+   folder is then called `wikipedia-interest-skill-main`.
+2. **Open the folder in Claude Code.** In a terminal: `cd wikipedia-interest-skill`, then
+   `claude`. In the desktop app: the Code tab, then choose the `wikipedia-interest-skill`
+   folder. Nothing has to be installed as a plugin: Claude Code finds the skill in the
+   folder by itself.
+3. **Type your question** in plain words, in any language, for example:
+
+   > Pull Wikipedia pageviews for astronomy in the Ukrainian and Polish editions for the
+   > last two years and tell me whether interest is growing.
+
+4. **Allow the commands.** Claude asks before it runs anything: answer **Yes** or
+   **Allow**. The first time only, it reports that dependencies are missing and asks to
+   run a command that creates `.venv` and installs them. Allow it. After that every
+   question starts right away.
+5. **Read the answer.** It comes in the language you wrote in and always has:
+   - one sentence per language: what happened, over which dates, and how sure it is
+     (high, medium or low);
+   - which language gets the most attention, when there are two or more;
+   - where the PDF report is;
+   - a line "Limitations:" with what the data cannot tell.
+6. **Open the report.** It is in the `out/` folder of the project:
+   `out/<languages>_<topic>_<dates>/report.pdf`, next to the charts (PNG) and the daily
+   numbers (CSV).
+
+A question takes 15 to 45 seconds; the first one, with the install, under a minute. It was
+tested on the smallest model, Claude Haiku 4.5; larger models work too.
+
+### Questions you can ask
+
+- "Compare the growth of interest in intermittent fasting on Polish and Czech Wikipedia
+  over two years."
+- "Is interest in astronomy growing on Ukrainian Wikipedia, and how far can we trust that?"
+- "Which language editions pay most attention to learning English? Prepare a report."
+- "We are localizing a course on climate change. Which language first: German, French or
+  Polish?"
+
+You do not have to name languages: Claude then lists the editions that have the article
+and suggests a few. The default window is the last two years; say "since 2024-01-01" or
+"over the last year" to change it.
+
+### What the answer means
+
+| In the answer | Meaning |
+|---|---|
+| growing, declining | A steady trend over the whole window, with a rate per year. The only verdict that means momentum. |
+| stable | The yearly change is within ±5%. |
+| no detectable trend | Nothing measurable; the answer says how large a change would have been visible. |
+| jumped, dropped (a level shift) | A one-off step, for example after a rename or a link from the main page. Not growth. |
+| came from spikes | The rise or drop was a few short news spikes; without them there is no trend. |
+| not enough data, renamed | Too little traffic or a broken series. The tool refuses instead of guessing; it does not mean the topic is unpopular. |
+| high, medium, low | How far to trust the verdict. Each weakness (short window, strong seasonality, ...) lowers it one step. |
+
+"Attention" is an article's share of all views of its edition (views per million), so a
+large and a small language can be compared fairly.
+
+### If something goes wrong
+
+| You see | Do |
+|---|---|
+| Claude searches the web or writes its own script | Check that Claude Code was started inside the project folder. Start the message with `/wikipedia-interest`, or add "use the wikipedia-interest skill". |
+| "Python 3.12+ is required" and the install fails | Install Python 3.12 or newer from python.org, restart Claude Code, ask again. |
+| `claude: command not found` | Install Claude Code, see "What you need". |
+| A network error or a timeout | Check the connection to wikimedia.org. The API allows about 10 requests a minute: wait a minute and ask again; data already downloaded are kept. |
+| Windows: the skill is not found | Git on Windows may not create the link `.claude/skills/wikipedia-interest`. Install the skill as a plugin instead, see "Install in every project". |
+
+## Install in every project
+
+The quick start uses the skill inside this folder only. To have it in any project, add
+it as a Claude Code plugin:
 
 ```bash
 claude plugin marketplace add Kuzmenko-Oleksandr/wikipedia-interest-skill
@@ -37,7 +130,26 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 `scripts/wikitrends` uses that `.venv` automatically. If dependencies are missing, the CLI
 itself prints the exact command to run. With uv: `UV_LINK_MODE=copy uv sync --locked`.
 
-## Use
+## Other agents
+
+The skill is in the open Agent Skills format and has nothing specific to Claude:
+`SKILL.md` names no Claude tool, and all the work happens in `scripts/wikitrends`, which
+any agent that can run a shell command can call. Codex and Gemini CLI read project skills
+from `.agents/skills/`, and this repository has a link there, so opening the clone is
+enough; `AGENTS.md` carries the same instruction as `CLAUDE.md`. To have the skill in any
+project, copy the folder to your user skills:
+
+```bash
+mkdir -p ~/.agents/skills && cp -r skills/wikipedia-interest ~/.agents/skills/
+```
+
+Dependencies are the same as above. An agent without skill support can be told to follow
+`skills/wikipedia-interest/SKILL.md`, or you can [run the CLI directly](#run-the-cli-directly).
+Only Claude Code on Haiku 4.5 was measured; other agents were not tested.
+
+## Run the CLI directly
+
+Without Claude, from the repository folder:
 
 ```bash
 sh skills/wikipedia-interest/scripts/wikitrends compare --topic "Intermittent fasting" \
@@ -132,7 +244,7 @@ clock, so a rerun overwrites instead of piling up.
 
 The code was written with AI assistance. Nothing below takes the model's word for it.
 
-**Known-answer tests (168, `make test`).** Hand-computed examples that pin each formula:
+**Known-answer tests (169, `make test`).** Hand-computed examples that pin each formula:
 Mann-Kendall on `[1, 3, 2, 1]` must give `S = −1`, `Var(S) = 7.667`, `Z = 0` (8.667 means
 the tie correction is missing, −0.361 means the continuity correction is missing); Pettitt
 on `[1, 2, 3, 10, 11, 12]` must split at index 3 with `p = 0.291`. Synthetic series with a
@@ -162,20 +274,21 @@ stable and fr a one-off step; de a rise made of six spikes; cs too little data; 
 Google Analytics question that must not trigger the skill) and one live case. The
 harness itself needs a shell sandbox that this build container lacks, so each case was
 run on `claude-haiku-4-5` through `claude -p --plugin-dir` (the same agent loop without
-the harness), three times after the last change to the skill, and the answers were
-graded against the case rubrics by a separate Sonnet judge:
+the harness), three times after the last change to the skill, with no user settings,
+skills or MCP servers loaded and an empty cache per run, and the answers were graded
+against the case rubrics by a separate Sonnet judge:
 
 | Metric (SPEC §11.3) | Target | Measured on Haiku 4.5 |
 |---|---|---|
-| Skill fires on natural phrasing (6 queries ×3) | ≥ 90% | 17/18 (94%) |
-| False triggers on near-miss questions (4 queries ×3) | 0% | 0/12 |
+| Skill fires on natural phrasing (6 queries ×3, uk/en) | ≥ 90% | 18/18 (100%) |
+| False triggers on near-miss questions (5 queries ×3) | 0% | 0/15 |
 | Tool calls per scenario | ≤ 8, median ≤ 5 | 2 in every run (Skill + one `compare`) |
 | Repeated file reads | 0 | 0 |
 | PDF written to the user's folder | every scenario | 12/12 |
-| Peak context | ≤ 60K tokens | 33.3-33.8K |
-| Wall time | ≤ 60 s | 15-26 s |
-| Cost per scenario | ≤ $0.02 | $0.029-0.036 (missed: the question that does not use the skill already costs $0.013, which is Claude Code's own prompt) |
-| Answers passing the case rubric (Sonnet judge) | score ≥ 0.8 | 15/15 |
+| Peak context | ≤ 60K tokens | 33.6-34.4K |
+| Wall time | ≤ 60 s | 15-28 s |
+| Cost per scenario | ≤ $0.02 | $0.036-0.043 (missed: the question that does not use the skill already costs $0.020, which is Claude Code's own prompt) |
+| Answers passing the case rubric (Sonnet judge) | score ≥ 0.8 | 14/15 |
 
 Getting there took several rounds, and the misses are the useful part:
 
@@ -190,8 +303,8 @@ Getting there took several rounds, and the misses are the useful part:
    topic, and the answer template has a fixed "Limitations:" line.
 3. A request that names no languages ("in the selected editions") triggered the skill
    0 times out of 3: Haiku asked which languages first. The description now says to use
-   the skill anyway, since it can list the editions itself. Final round: 17/18 triggers
-   and 15/15 rubric passes.
+   the skill anyway, since it can list the editions itself. In the final rerun it fired
+   on this request 3 times out of 3.
 4. Two prompts the skill was never tuned on (which language to localize a course into; a
    question naming no languages) exposed a defect in the tool, not the model: near the
    1 KB limit the line dropped a refusal's `reason` and the audience size before the chart
@@ -200,6 +313,10 @@ Getting there took several rounds, and the misses are the useful part:
    every verdict as momentum. Paths are now shed first and only a trend counts as
    momentum. Afterwards every Czech refusal said that low traffic says nothing about
    interest, and none of 5 localization answers called the step growth or demand.
+5. The final rerun, with every query in Ukrainian or English, passed 14 of 15 rubrics.
+   The miss: an answer in Ukrainian opened the French one-off step with "views grew",
+   and only then called it a one-off change, not steady growth; the judge failed it for
+   the growth wording.
 
 **Independent code review.** A separate agent reviewed the package for correctness bugs
 and had to reproduce every finding with a probe script before reporting it. It found 11;
@@ -251,10 +368,38 @@ confidence level and its four flags only, and two comparisons of six and seven e
 named the order correctly. Both, however, opened `metrics.json` against the instructions
 to fetch numbers the line had trimmed (the agents' folder path was 250 characters long,
 which leaves little room in 1 KB), and one quoted all twelve limitations instead of the
-caveat. With one more rule, "if a field is missing from the line, leave it out", a
-rerun of that prompt from the same long path took three tool calls, never opened
-`metrics.json`, named the order of editions exactly as in `tiers`, matched every
-number and gave the caveat alone.
+caveat. With one more rule, "if a field is missing from the line, leave it out", two
+reruns of that prompt in Ukrainian from a 263-character path took three tool calls each
+and never opened `metrics.json`. One compared five editions, named the order uk, pt, then
+pl and ja tied, then de, exactly as in `tiers`, matched every number and gave the caveat
+alone (33 s, $0.048). The other picked six editions of which only English had enough
+traffic, so there was no order to name. Its numbers matched, but it shortened the report
+path to `/out/…`, which does not exist, and said the thin editions "may indicate lower
+popularity", which the refusal `reason` warns against (88 s uncached, $0.053).
+
+**Claude Code itself, from a fresh clone.** The harness and `--plugin-dir` runs load
+the skill directly, so the last check used the real `claude` CLI on Haiku 4.5 with only
+the skill's description to go on. An earlier description, which did not yet say that the
+skill downloads the data itself and replaces web search, fired on the three Ukrainian
+requests from `evals/` as often as the current one, 9 of 9 each, so the rewrite shows no
+measured gain there. The current one fired on 18 of 18 requests with 0 of 15 near misses;
+a question took 8-20 s and $0.034-0.043. Then copies of the repository with no plugin
+installed were opened as a new user would open them, and asked to pull Wikipedia
+pageviews for astronomy in Ukrainian and Polish over two years. With the link in
+`.claude/skills/` and `CLAUDE.md` Haiku used the skill in 4 of 4 runs. Each copy started
+without dependencies: the CLI reported that Python 3.12 was missing and printed the
+install command, Haiku ran it, repeated the call and answered in 40-48 s for
+$0.053-0.054, every number matching the JSON line. Three questions in Ukrainian got
+answers in Ukrainian and one in English got an answer in English, although the data came
+from the Ukrainian and Polish editions; an earlier answer had followed the language of the
+data, which is why `SKILL.md` says to answer in the language the user wrote in. Haiku's
+Ukrainian is rougher than its English (for example "артикул" for an article), but the
+numbers held. Without the link and `CLAUDE.md` it was 1 of 2: once Haiku found
+`skills/wikipedia-interest/SKILL.md` on its own and followed it; once it fetched monthly
+pageviews by hand and reported a "-81%" fall for "Ukraine" from a September peak and a
+stable Poland, where the skill found both editions declining with low confidence. A
+`resolve` of a topic with long titles in 20 editions printed an empty line, since the
+titles did not fit 1 KB; the smallest editions are now left out instead.
 
 ### Run the evals
 
@@ -298,6 +443,11 @@ The twelve limitations printed in every report are in
 ## Repository layout
 
 ```
+CLAUDE.md                         tells Claude Code in this folder to use the skill
+AGENTS.md                         the same for Codex and other agents
+SPEC.md, SPEC.uk.md               technical specification (English, Ukrainian)
+.claude/skills/wikipedia-interest link to the skill: a clone works with no install
+.agents/skills/wikipedia-interest the same link for Codex, Gemini CLI and others
 .claude-plugin/marketplace.json   install as a plugin
 .github/workflows/ci.yml          lint, types, tests (Ubuntu, macOS, fontless container), eval
 skills/wikipedia-interest/

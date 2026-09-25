@@ -18,7 +18,7 @@ from .artifacts import ArtifactWriter
 from .cache import CacheDatabase, CachedPageviews, JsonStore, PageviewStore, default_cache_path
 from .errors import WikitrendsError
 from .models import DATA_FLOOR, DateRange
-from .output import Payload, error_payload, stdout_payload, to_line
+from .output import Payload, error_payload, fits, stdout_payload, to_line
 from .replay import FixtureStore, RecordingTransport, ReplayTransport, fixture_dir
 from .resolve import EditionRegistry, TopicResolver
 from .service import CompareRequest, InterestService, UsageError, parse_titles
@@ -184,17 +184,26 @@ def cmd_resolve(args: argparse.Namespace, ctx: Context) -> Payload:
     titles = {
         lang: resolution.articles[lang].title for lang in shown if lang in resolution.articles
     }
-    return {
+    payload: Payload = {
         "ok": True,
         "schema": 1,
         "qid": resolution.qid,
         "source_lang": source,
         "titles": titles,
-        "titles_arg": ",".join(f"{lang}:{title}" for lang, title in titles.items()),
+        "titles_arg": _titles_arg(titles),
         "missing": list(resolution.missing),
         "available_count": len(available),
         "warnings": list(ctx.notices),
     }
+    # Otherwise to_line sheds every title to fit 1 KB; drop the smallest editions instead.
+    while len(titles) > 1 and not fits(payload):
+        titles.popitem()
+        payload["titles_arg"] = _titles_arg(titles)
+    return payload
+
+
+def _titles_arg(titles: dict[str, str]) -> str:
+    return ",".join(f"{lang}:{title}" for lang, title in titles.items())
 
 
 def cmd_cache(args: argparse.Namespace, ctx: Context) -> Payload:

@@ -281,20 +281,20 @@ _SHEDDING: Sequence[Callable[[Payload], None]] = (
 )
 
 
-def _fits(payload: Payload) -> bool:
+def fits(payload: Payload) -> bool:
     return len(_dumps(payload).encode()) <= STDOUT_LIMIT
 
 
 def _hard_cap(payload: Payload) -> None:
     """Only for absurd inputs (paths or topics of hundreds of characters)."""
     languages = payload.get("languages", [])
-    while languages and not _fits(payload):
+    while languages and not fits(payload):
         languages.pop()
         payload["languages_cut"] = True
-    if not _fits(payload):
+    if not fits(payload):
         payload["summary"] = _clip(payload.get("summary", ""), 120)
     for key in ("tiers", "metrics_json", "report_pdf"):
-        if not _fits(payload):
+        if not fits(payload):
             payload.pop(key, None)
 
 
@@ -306,9 +306,9 @@ def to_line(payload: Payload) -> str:
     if payload.get("ok") is False:
         return _dumps(payload)
     for shed in _SHEDDING:
-        if _fits(payload):
+        if fits(payload):
             break
         shed(payload)
-    if not _fits(payload):
+    if not fits(payload):
         _hard_cap(payload)
     return _dumps(payload)

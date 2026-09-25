@@ -52,7 +52,7 @@ and finally `caveat`. `tiers` are never dropped. Everything dropped is still in
 | Field | Meaning |
 |---|---|
 | `qid` | Wikidata item of the topic, e.g. `Q333`. |
-| `titles` | Edition → article title, for the requested editions or up to 20 large ones. |
+| `titles` | Edition → article title, for the requested editions or up to 20 large ones; the smallest are left out when the line would pass 1 KB. |
 | `titles_arg` | The same, ready to paste after `compare --titles`. |
 | `missing` | Requested editions without an article on the topic. |
 | `available_count` | How many Wikipedia editions have the article. |

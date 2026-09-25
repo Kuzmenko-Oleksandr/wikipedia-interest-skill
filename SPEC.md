@@ -1,5 +1,7 @@
 # Technical specification: the `wikipedia-interest` skill — interest analysis from Wikipedia data
 
+**English** | [Українська](SPEC.uk.md)
+
 Version 1.0 · 2026-09-24 · submission deadline 2026-09-27 23:59
 
 This document is based on four parallel research tracks (Wikimedia API, statistics,
@@ -954,6 +956,8 @@ claude plugin install wikipedia-interest@wikipedia-interest-skill
 
 # or by hand
 cp -r skills/wikipedia-interest ~/.claude/skills/
+# for Codex, Gemini CLI and other agents that read .agents/skills
+cp -r skills/wikipedia-interest ~/.agents/skills/
 
 # dependencies
 pip install -r skills/wikipedia-interest/requirements.txt
@@ -1057,7 +1061,7 @@ Recorded so they do not resurface during implementation.
 
 | Question | Decision |
 |---|---|
-| Language | **Everything in English**: `SKILL.md`, `references/`, README, CLI output, warnings, the PDF report. Cyrillic appears in the report only in article titles (uk, bg, sr, etc.), so the DejaVu Sans font requirement and the glyph test stay |
+| Language | **Everything in English**: `SKILL.md`, `references/`, README, CLI output, warnings, the PDF report. Cyrillic appears in the report only in article titles (uk, bg, sr, etc.), so the DejaVu Sans font requirement and the glyph test stay. Only the README and this spec also have Ukrainian translations |
 | Repository | `github.com/Kuzmenko-Oleksandr/wikipedia-interest-skill`, public, MIT |
 | Folder | `~/PhpstormProjects/wikipedia-interest-skill`, its own `git init` |
 | Stack | Python 3.12+ (numpy 2.5.3 does not install on 3.11) |

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from dataclasses import replace
@@ -18,6 +19,7 @@ from tests import synthetic
 from wikitrends import cli, narrative
 from wikitrends.analysis import LanguageAnalyzer, rank
 from wikitrends.api import WikidataEntity
+from wikitrends.artifacts import ArtifactWriter
 from wikitrends.cache import CacheDatabase, CachedPageviews, JsonStore, PageviewStore
 from wikitrends.errors import WikitrendsError
 from wikitrends.models import Article, DailyCounts, DateRange, Edition, TrafficFilter
@@ -234,3 +236,40 @@ def test_decline_is_worded_without_a_double_sign() -> None:
     result = LanguageAnalyzer().analyze(Article("uk", "X"), synthetic.series(values), total)
     assert result.assessment.verdict is Verdict.DECLINING
     assert re.search(r"fell ~\d+%/yr", narrative.language_sentence(result))
+
+
+class LargeEditions:
+    def wikipedia_editions(self) -> list[Edition]:
+        return [Edition(lang, f"{lang}wiki") for lang in cli.LARGE_EDITIONS]
+
+
+class LongTitles:
+    def entity_for(self, dbname: str, title: str) -> WikidataEntity | None:
+        title = "Intermittent fasting and time-restricted eating"
+        return WikidataEntity("Q1", {f"{lang}wiki": title for lang in cli.LARGE_EDITIONS})
+
+
+def test_resolve_keeps_the_largest_editions_when_twenty_titles_do_not_fit(tmp_path: Path) -> None:
+    # A live resolve of 20 long titles printed {"ok":true,"schema":1,"languages":[]}.
+    db = CacheDatabase()
+    store = JsonStore(db)
+    clock = lambda: datetime(2026, 3, 10, tzinfo=UTC)  # noqa: E731
+    pages = StalePages()
+    registry = EditionRegistry(LargeEditions(), store, clock)
+    resolver = TopicResolver(pages, LongTitles(), registry, store)
+    pageviews = CachedPageviews(RenamedSource(), PageviewStore(db), clock)
+    service = InterestService(resolver, pageviews, pages)
+    ctx = cli.Context(
+        service, resolver, PageviewStore(db), ArtifactWriter(tmp_path), None, date(2026, 3, 10), ()
+    )
+    args = argparse.Namespace(topic="Intermittent fasting", source_lang=None, langs=None)
+    line = to_line(cli.cmd_resolve(args, ctx))
+    payload = json.loads(line)
+    assert len(line.encode()) <= 1024
+    assert payload["qid"] == "Q1"
+    assert payload["available_count"] == len(cli.LARGE_EDITIONS)
+    assert 1 < len(payload["titles"]) < cli.SUGGESTED_LIMIT
+    assert list(payload["titles"])[:2] == ["en", "ja"]
+    assert payload["titles_arg"].split(",") == [
+        f"{lang}:{title}" for lang, title in payload["titles"].items()
+    ]

@@ -1,15 +1,14 @@
 ---
 name: wikipedia-interest
 description: >-
-  Analyzes Wikipedia pageview data to compare interest in a topic across language
-  editions and detect whether that interest is genuinely growing. Produces charts and
-  a one-page PDF report with explicit confidence levels and stated limitations. Use when
-  deciding which topic to build content for, which language to localize into, or when
-  asked whether interest in a subject is rising in a given country or language. Also use
-  it whenever a request pairs Wikipedia with interest, popularity, attention or pageviews
-  of a topic. If no languages are named, use it anyway: it lists the editions that have
-  the article so languages can be proposed. Not for real-time traffic, not a measure of
-  purchase intent, and not a forecasting tool.
+  Downloads Wikipedia pageview data itself and answers how interest in a topic compares
+  across language editions or whether it is genuinely growing, with charts, a one-page
+  PDF report, confidence levels and limitations. Use it for any request about interest,
+  popularity, attention or pageviews of a topic on Wikipedia, instead of web search or
+  fetching Wikimedia pages by hand; also to decide which topic to build content for or
+  which language to localize into. If no languages are named, use it anyway and do not
+  ask first: it lists the editions that have the article. Not for real-time traffic,
+  purchase intent or forecasts.
 license: MIT
 compatibility: >-
   Requires Python 3.12+ and network access to wikimedia.org. Dependencies installed via
@@ -38,7 +37,8 @@ Follow these steps in order. All numbers come from the script; never compute the
    `confidence`, `pct_per_year` or `mde_pct_per_year`, `blocking_gate`. Do not open the
    PDF, PNG, CSV or metrics file unless the user asks for details they contain. If a
    field is missing from the line, leave it out; never open `metrics.json` to fill it in.
-6. Answer in the user's language with exactly these parts, in this order:
+6. Answer in the language the user wrote in, not the language of the editions
+   analysed, with exactly these parts, in this order:
    - one sentence per language: its verdict, the window, its `confidence`;
    - if `tiers` holds two or more languages, one sentence on their order: the first
      inner list gets the largest share of attention; languages in one list tie;
@@ -137,7 +137,8 @@ comparable across languages; `reach_median` is typical daily views; `summary` is
 ## Choosing languages
 
 1. Run `sh <skill-dir>/scripts/wikitrends resolve --topic "T"`.
-2. Read `titles` (up to 20 large editions that have the article) and `available_count`.
+2. Read `titles` (up to 20 large editions that have the article, fewer if the titles are
+   long) and `available_count`.
 3. Suggest 3 to 5 editions that fit the user's goal, or ask the user to choose.
 4. Then run `compare --titles <titles_arg from resolve, trimmed to the chosen languages>`.
 
