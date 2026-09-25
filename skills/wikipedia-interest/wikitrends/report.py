@@ -25,6 +25,7 @@ from .render import (
     draw_normalized,
     draw_ranking,
     draw_timeseries,
+    drawable,
     plt,
     save_charts,
     style,
@@ -50,6 +51,9 @@ LINE_HEIGHT_EM = 1.02
 WRAP_SLACK = 0.9
 TITLE_CHARS = 28
 MAX_TABLE_ROWS = 10
+TITLE_FONT = 12
+# Share of the header width the title may take when the SYNTHETIC DATA stamp sits beside it.
+STAMPED_TITLE_SHARE = 0.8
 MIN_FINDINGS_INCHES = 0.4
 COLUMNS = ("Lang", "Article", "Verdict", "Conf.", "Change per year", "Views/day", "Per million")
 COLUMN_WIDTHS = (0.06, 0.24, 0.2, 0.08, 0.18, 0.12, 0.12)
@@ -87,7 +91,8 @@ def table_rows(run: RunResult) -> list[list[str]]:
     rows = []
     for result in run.ordered:
         a = result.assessment
-        title = textwrap.shorten(result.article.title, TITLE_CHARS, placeholder="…")
+        title = drawable(result.article.title, "(see metrics.json)")
+        title = textwrap.shorten(title, TITLE_CHARS, placeholder="…")
         verdict = narrative.label(a.verdict)
         if a.blocking is not None:
             verdict = f"{verdict} ({a.blocking.gate.split('_')[0]})"
@@ -181,8 +186,22 @@ class TextBox:
 
 def _title(run: RunResult) -> str:
     request = run.request
-    subject = request.topic or ", ".join(f"{a.lang}:{a.title}" for a in request.titles)
-    return f"Wikipedia interest: {subject} ({', '.join(request.langs)})"
+    return f"Wikipedia interest: {request.subject} ({', '.join(request.langs)})"
+
+
+def _fitted(ax: Axes, text: str, prop: FontProperties, share: float) -> str:
+    """`text` cut word by word, with an ellipsis, until it fits `share` of the axes width."""
+    fig = ax.get_figure()
+    assert isinstance(fig, Figure)
+    renderer = fig.canvas.get_renderer()  # pyright: ignore[reportAttributeAccessIssue]
+    room = ax.get_window_extent(renderer).width * share
+    fitted, chars = text, len(text)
+    while (
+        chars > 1 and renderer.get_text_width_height_descent(fitted, prop, ismath=False)[0] > room
+    ):
+        chars -= 2
+        fitted = textwrap.shorten(text, chars, placeholder="…")
+    return fitted
 
 
 class ReportBuilder:
@@ -273,7 +292,11 @@ class ReportBuilder:
     def _header(ax: Axes, run: RunResult, metrics: dict[str, Any]) -> None:
         ax.set_axis_off()
         span = run.request.span
-        ax.text(0, 1, _title(run), fontsize=12, weight="bold", va="top")
+        synthetic = any("synthetic" in w for w in metrics["warnings"])
+        title = drawable(_title(run), f"Wikipedia interest ({', '.join(run.request.langs)})")
+        prop = FontProperties(size=TITLE_FONT, weight="bold")
+        share = STAMPED_TITLE_SHARE if synthetic else 1.0
+        ax.text(0, 1, _fitted(ax, title, prop, share), fontproperties=prop, va="top")
         lines = []
         question = metrics.get("question")
         if question:
@@ -284,7 +307,7 @@ class ReportBuilder:
             f"wikitrends {__version__}"
         )
         ax.text(0, 0.55, "\n".join(lines), fontsize=7, color="#333333", va="top")
-        if any("synthetic" in w for w in metrics["warnings"]):
+        if synthetic:
             ax.text(
                 1,
                 1,

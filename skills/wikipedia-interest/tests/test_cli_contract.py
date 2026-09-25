@@ -193,6 +193,35 @@ def test_refusal_reason_and_audience_outlive_file_paths(
     assert "report_pdf" in refused and "report_pdf" in compared
 
 
+def test_ranking_outlives_rates_with_six_languages(capsys: pytest.CaptureFixture[str]) -> None:
+    # A live Haiku run lost the tiers to shedding and could not rank six languages.
+    base = Path(tempfile.mkdtemp(dir="/tmp")).resolve()
+    out = str(base / ("x" * (99 - len(str(base)))))
+    try:
+        payload, code = invoke(capsys, "compare", *DEMO, *ASTRONOMY, "--out-dir", out)
+    finally:
+        shutil.rmtree(base)
+    assert code == 0
+    assert payload["tiers"] == [["uk"], ["pl"], ["fr"], ["de"], ["en"]]
+
+
+def test_verbose_logs_progress_without_library_chatter(tmp_path: Path) -> None:
+    # -v printed fontTools subsetting details between the progress lines.
+    env = {**os.environ, "MPLCONFIGDIR": str(tmp_path / "mpl")}
+    args = ["compare", "-v", *DEMO, *ASTRONOMY, "--out-dir", str(tmp_path / "out")]
+    done = subprocess.run(
+        [sys.executable, "-m", "wikitrends", *args],
+        cwd=SKILL_DIR,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "fetching" in done.stderr
+    assert "pruned" not in done.stderr and "findfont" not in done.stderr
+
+
 def test_line_fits_1kb_with_eight_languages_and_long_paths() -> None:
     from wikitrends.output import CAVEAT, to_line
 

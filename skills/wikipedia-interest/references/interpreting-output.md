@@ -7,9 +7,10 @@ Logs go to stderr. When the line would exceed 1 KB, fields are dropped in this o
 `charts`, `report_png`, `data_csv` (all in the folder of `report_pdf`), per-language
 `title`, all but one warning, `cache`, `metrics_json` (only when `report_pdf` is present:
 it sits in the same folder), per-language `flags`, `reach_median`, `vpm_median`, then
-`warnings`, `tiers`, per-language `mde_pct_per_year`, `step_ratio`, `step_date`,
+`warnings`, per-language `mde_pct_per_year`, `step_ratio`, `step_date`,
 `pct_per_year`, `confidence` (the `summary` still carries the verdicts) and `reason`,
-and finally `caveat`. Everything dropped is still in `metrics.json`.
+and finally `caveat`. `tiers` are never dropped. Everything dropped is still in
+`metrics.json`.
 
 ### compare / analyze / report
 

@@ -272,10 +272,10 @@ def run(argv: Sequence[str] | None = None) -> tuple[Payload, int]:
     try:
         args = build_parser().parse_args(argv)
         logging.basicConfig(
-            stream=sys.stderr,
-            level=logging.INFO if args.verbose else logging.WARNING,
-            format="wikitrends: %(message)s",
+            stream=sys.stderr, level=logging.WARNING, format="wikitrends: %(message)s"
         )
+        # -v opens our loggers only; fontTools and httpx stay quiet.
+        log.setLevel(logging.INFO if args.verbose else logging.NOTSET)
         handler: Handler = args.handler
         return handler(args, _build(args)), 0
     except WikitrendsError as exc:

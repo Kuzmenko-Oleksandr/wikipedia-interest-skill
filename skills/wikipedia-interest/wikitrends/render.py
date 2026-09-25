@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +19,10 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from cycler import cycler
+from matplotlib import font_manager
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ft2font import FT2Font
 from matplotlib.gridspec import SubplotSpec
 from matplotlib.typing import RcKeyType
 from numpy.typing import NDArray
@@ -35,6 +39,7 @@ __all__ = [
     "draw_normalized",
     "draw_ranking",
     "draw_timeseries",
+    "drawable",
     "palette",
     "plt",
     "save_charts",
@@ -51,9 +56,28 @@ SMOOTH_DAYS = 7
 LOG_SCALE_RATIO = 20.0
 PNG_DPI = 150
 MULTIPLE_COLUMNS = 4
+FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+
+
+def _bundled_fonts() -> list[str]:
+    """Fallbacks for scripts DejaVu Sans lacks (CJK, Indic, Thai...); see assets/fonts."""
+    names = []
+    # Hangul first: Droid Sans Fallback lacks the syllables and would draw loose jamo.
+    for path in sorted(FONT_DIR.glob("*.ttf"), key=lambda p: (not p.name.startswith("Nanum"), p)):
+        font_manager.fontManager.addfont(path)
+        names.append(font_manager.FontProperties(fname=path).get_name())
+    return names
+
+
+# Matplotlib takes each glyph from the first family that has it.
+FONTS = ("DejaVu Sans", *_bundled_fonts())
+# The fallbacks have no bold face; bold titles use the regular one without a stderr note.
+logging.getLogger("matplotlib.font_manager").addFilter(
+    lambda record: not str(record.msg).startswith("findfont: Failed to find font weight")
+)
 
 STYLE: dict[RcKeyType, Any] = {
-    "font.family": "DejaVu Sans",
+    "font.family": list(FONTS),
     "font.size": 8,
     "pdf.fonttype": 42,
     "axes.prop_cycle": cycler(color=OKABE_ITO),
@@ -77,6 +101,19 @@ def style() -> Generator[None]:
     """Explicit style so a user matplotlibrc cannot swap in a font without Cyrillic."""
     with plt.rc_context(STYLE):
         yield
+
+
+@cache
+def _faces() -> tuple[FT2Font, ...]:
+    return tuple(FT2Font(font_manager.findfont(name, fallback_to_default=False)) for name in FONTS)
+
+
+def drawable(text: str, fallback: str) -> str:
+    """`text` when every glyph is in the fonts, else `fallback`: no tofu boxes on the page."""
+    faces = _faces()
+    if all(c.isspace() or any(f.get_char_index(ord(c)) for f in faces) for c in text):
+        return text
+    return fallback
 
 
 def palette(langs: Sequence[str]) -> dict[str, str]:
@@ -153,7 +190,8 @@ def draw_timeseries(fig: Figure, spec: SubplotSpec, run: RunResult) -> None:
         values = result.views.values
         ax.plot(days, values, lw=0.6, alpha=0.35, color=colour)
         smooth = rolling_median(values, SMOOTH_DAYS, min_periods=4)
-        ax.plot(days, smooth, lw=1.6, color=colour, label=f"{result.lang}: {result.article.title}")
+        label = drawable(f"{result.lang}: {result.article.title}", result.lang)
+        ax.plot(days, smooth, lw=1.6, color=colour, label=label)
         spikes = np.flatnonzero(result.spikes.spike_days)
         if spikes.size:
             ax.scatter(

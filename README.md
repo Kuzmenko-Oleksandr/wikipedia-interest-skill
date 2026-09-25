@@ -111,7 +111,9 @@ Formulas, thresholds, worked examples and every departure from the original desi
 ### Stack
 
 Python 3.12, `numpy`, `matplotlib` (Agg backend, PDF through `PdfPages`, DejaVu Sans
-shipped with matplotlib), `httpx`; `sqlite3`, `argparse`, `math.erfc` from the stdlib.
+shipped with matplotlib plus fallback fonts in `assets/fonts` for CJK, Indic, Thai and
+other scripts, so article titles render the same on any machine), `httpx`; `sqlite3`,
+`argparse`, `math.erfc` from the stdlib.
 Rejected: plotly+kaleido (needs a system Chrome), reportlab (its built-in font has no
 Cyrillic and silently draws boxes), fpdf2 (raises on the first Cyrillic letter),
 hand-written SVG (no SVG-to-PDF path without cairo), scipy (every test fits in a few
@@ -130,7 +132,7 @@ clock, so a rerun overwrites instead of piling up.
 
 The code was written with AI assistance. Nothing below takes the model's word for it.
 
-**Known-answer tests (162, `make test`).** Hand-computed examples that pin each formula:
+**Known-answer tests (168, `make test`).** Hand-computed examples that pin each formula:
 Mann-Kendall on `[1, 3, 2, 1]` must give `S = −1`, `Var(S) = 7.667`, `Z = 0` (8.667 means
 the tie correction is missing, −0.361 means the continuity correction is missing); Pettitt
 on `[1, 2, 3, 10, 11, 12]` must split at index 3 with `p = 0.291`. Synthetic series with a
@@ -149,9 +151,10 @@ collapsed to 0 on low counts. Separately, the contract test caught stdout lines 
 1 KB with six languages and long paths.
 
 **Rendering without looking.** A missing-glyph warning is an error (verified to fire on
-Japanese text); the PDF has exactly one A4 page, no creation date, and `Вікіпедія`,
-`Łódź`, `Řehoř` extract back as text; two builds are byte-identical; PNGs are not blank.
-CI also runs the tests in `python:3.12-slim`, which has no fonts at all.
+Tibetan, the one script tested that no bundled font has); the PDF has exactly one A4 page,
+no creation date, and `Вікіпедія`, `Łódź`, `Řehoř`, `天文学`, `천문학`, `ดาราศาสตร์`
+extract back as text; two builds are byte-identical; PNGs are not blank. CI also runs the
+tests in `python:3.12-slim`, which has no fonts at all.
 
 **The full scenario on Claude Haiku 4.5.** `evals/` holds five cases for
 `claude plugin eval` on the synthetic fixture (planted answers: uk growing ~23%/yr; pl
@@ -211,11 +214,47 @@ to raw views, relative cache paths and an overwritten panel label. The eleventh,
 separately caught a step dated eight weeks late: Pettitt's split drifts when the level
 after a step keeps rising, so the location now comes from a median scan.
 
-**What was not verified.** This work was done in a container without access to
-wikimedia.org, so the pipeline has not been run on live data here. The API behaviour it
-relies on (404 means "no data", omitted days, first-letter case, the rate limit) comes
-from probes recorded in the design document. Run the `live-compare-real` eval case, or
-`--record-fixture DIR` once, on a machine with network access.
+**Live data on Claude Haiku 4.5.** On a machine with network access the pipeline ran
+against the live Wikimedia API; a six-language `compare` took 84 s uncached. Six prompts
+(the three from the assignment, a localization question, and two near misses about Google
+Analytics and Google Trends) went to Haiku 4.5 agents that, as in Claude Code, saw only
+the skill's name and description. `claude plugin eval` refused to run on the Mac used:
+Docker Desktop keeps symbolic links in `~/.docker`, and the harness will not start a
+Bash sandbox it cannot keep out of that credential store. So there is no Sonnet judge:
+each answer was checked by hand against the JSON line the tool printed. The first round
+fired the skill on 4/4 prompts and 0/2 near misses, two of four answers passed, and the
+live reports exposed defects the synthetic fixture could not:
+
+1. Japanese, Chinese, Korean, Thai and Indic titles came out as empty boxes: only
+   DejaVu Sans was used. Fallback fonts (Noto, Droid Sans Fallback, Nanum Gothic; 7.6 MB,
+   OFL and Apache-2.0) now ship in `assets/fonts` with pinned sources; a title in a
+   script none of them covers, such as Tibetan, is replaced by "(see metrics.json)".
+2. With six languages the PDF title listed every article and ran off the page, and a
+   `--titles` run was named after whichever title sorted first. The title now names the
+   topic and is cut to the page width; the run is named after the source-language title.
+3. With six languages and a long output path the stdout line shed `tiers` before the
+   rates, and the answer lost the ranking. The ranking is now never shed.
+4. A decline read "fell ~-12%/yr".
+5. The localization answer recommended "the English-speaking audience", which was never
+   measured. `SKILL.md` now limits recommendations to the analysed languages.
+
+Each code fix has a regression test. In the second round the skill again fired on 4/4
+and 0/2; the localization answer stayed within German, French and Polish with every
+number matching the JSON line, and the report with Japanese and Cyrillic titles
+rendered. Two answers still fell short: one gave a trust figure ("no more than 20%")
+the tool never produced, and a comparison of five editions listed each trend but not
+which edition gets the most attention, although `tiers` was now in the line.
+
+`SKILL.md` now forbids any number the line does not contain and asks for one sentence
+on the order in `tiers`. In a third round the trust question was answered with the
+confidence level and its four flags only, and two comparisons of six and seven editions
+named the order correctly. Both, however, opened `metrics.json` against the instructions
+to fetch numbers the line had trimmed (the agents' folder path was 250 characters long,
+which leaves little room in 1 KB), and one quoted all twelve limitations instead of the
+caveat. With one more rule, "if a field is missing from the line, leave it out", a
+rerun of that prompt from the same long path took three tool calls, never opened
+`metrics.json`, named the order of editions exactly as in `tiers`, matched every
+number and gave the caveat alone.
 
 ### Run the evals
 
@@ -269,6 +308,7 @@ skills/wikipedia-interest/
   wikitrends/fixtures/demo/       synthetic offline fixture
   references/                     methodology, interpreting-output, troubleshooting
   assets/report-template.md       the limitations block
+  assets/fonts/                   fallback fonts for non-Latin titles (OFL, Apache-2.0)
   evals/                          claude plugin eval cases and trigger queries
   tests/                          unit, rendering and contract tests
 ```

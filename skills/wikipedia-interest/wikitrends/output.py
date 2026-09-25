@@ -239,8 +239,8 @@ def _drop_metrics_path(payload: Payload) -> None:
 
 
 def _essentials(payload: Payload) -> None:
-    """Last resort: the verdicts, the summary and where to find everything else."""
-    keep = ("ok", "schema", "slug", "report_pdf", "metrics_json", "summary")
+    """Last resort: the verdicts, the ranking, the summary and where to find everything else."""
+    keep = ("ok", "schema", "slug", "report_pdf", "metrics_json", "summary", "tiers")
     languages = [{"lang": e["lang"], "verdict": e["verdict"]} for e in payload.get("languages", [])]
     for key in list(payload):
         if key not in keep:
@@ -254,9 +254,10 @@ def _trim_warnings(payload: Payload) -> None:
         payload["warnings"] = [warnings[0], f"{len(warnings) - 1} more in metrics.json"]
 
 
-# Least useful first; the verdicts, summary and report path survive the longest.
+# Least useful first; the verdicts, tiers, summary and report path survive the longest.
 # Files the agent never opens go first: they sit next to report.pdf anyway. A refusal's
 # reason goes last but one: without it small models read low traffic as low interest.
+# The tiers are never shed: without them a Haiku run lost the ranking of six languages.
 _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop("charts"),
     _drop("report_png"),
@@ -269,7 +270,6 @@ _SHEDDING: Sequence[Callable[[Payload], None]] = (
     _drop_language_key("reach_median"),
     _drop_language_key("vpm_median"),
     _drop("warnings"),
-    _drop("tiers"),
     _drop_language_key("mde_pct_per_year"),
     _drop_language_key("step_ratio"),
     _drop_language_key("step_date"),
@@ -293,7 +293,7 @@ def _hard_cap(payload: Payload) -> None:
         payload["languages_cut"] = True
     if not _fits(payload):
         payload["summary"] = _clip(payload.get("summary", ""), 120)
-    for key in ("metrics_json", "report_pdf"):
+    for key in ("tiers", "metrics_json", "report_pdf"):
         if not _fits(payload):
             payload.pop(key, None)
 

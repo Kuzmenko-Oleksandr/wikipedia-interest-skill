@@ -114,7 +114,7 @@ def language_sentence(result: LanguageResult) -> str:
         if a.pct_per_year is not None and a.pct_ci is not None:
             low, high = a.pct_ci
             return (
-                f"{lang}: {measure} {word} ~{a.pct_per_year:+.0f}%/yr {window} "
+                f"{lang}: {measure} {word} ~{abs(a.pct_per_year):.0f}%/yr {window} "
                 f"({_ci_label(a)} {low:+.0f}% to {high:+.0f}%/yr){confidence}."
             )
         return f"{lang}: {measure} {word} {window}; the size is not reported{confidence}."

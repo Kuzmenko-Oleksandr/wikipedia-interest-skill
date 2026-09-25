@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -202,3 +203,34 @@ def test_step_day_is_the_first_day_at_the_new_level() -> None:
     step_day = result.views.day(headline.step.day)
     assert abs(step_day - (synthetic.START + timedelta(days=400))) <= timedelta(days=4)
     assert result.assessment.verdict is Verdict.LEVEL_SHIFT_UP
+
+
+def test_titles_run_is_named_after_the_source_language() -> None:
+    # A live run with --titles de:...,en:... was saved and titled as "englische-sprache".
+    titles = (Article("de", "Englische Sprache"), Article("en", "English language"))
+    request = CompareRequest(("de", "en"), SPAN, titles=titles)
+    assert request.subject == "English language"
+    assert "_english-language_" in request.slug
+    assert "_englische-sprache_" in replace(request, source_lang="de").slug
+
+
+def test_long_report_title_is_cut_to_the_page_width(tmp_path: Path) -> None:
+    # Thirty languages ran the title off the right edge of the page.
+    total = synthetic.series(np.full(synthetic.DAYS, 5e6))
+    langs = tuple(f"l{i:02d}" for i in range(30))
+    request = CompareRequest(langs, total.span, topic="Astronomy")
+    run = RunResult(request, None, {}, langs, rank({}), (), 0, 0)
+    metrics = {"conclusions": [], "warnings": [], "limitations": []}
+    built = ReportBuilder().build(run, metrics, tmp_path)
+    first = PdfReader(built.pdf).pages[0].extract_text().splitlines()[0]
+    assert first.startswith("Wikipedia interest: Astronomy (l00, l01")
+    assert first.endswith("…")
+
+
+def test_decline_is_worded_without_a_double_sign() -> None:
+    # "fell ~-12%/yr" read as a rise to a live Haiku run.
+    total = synthetic.series(np.full(synthetic.DAYS, 5e6))
+    values = synthetic.growth(-30.0)
+    result = LanguageAnalyzer().analyze(Article("uk", "X"), synthetic.series(values), total)
+    assert result.assessment.verdict is Verdict.DECLINING
+    assert re.search(r"fell ~\d+%/yr", narrative.language_sentence(result))

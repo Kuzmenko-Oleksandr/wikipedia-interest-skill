@@ -36,15 +36,20 @@ Follow these steps in order. All numbers come from the script; never compute the
    draws charts and writes the PDF. Do not run any setup check first.
 5. Answer from the printed JSON line only: `summary`, then per language `verdict`,
    `confidence`, `pct_per_year` or `mde_pct_per_year`, `blocking_gate`. Do not open the
-   PDF, PNG, CSV or metrics file unless the user asks for details they contain.
+   PDF, PNG, CSV or metrics file unless the user asks for details they contain. If a
+   field is missing from the line, leave it out; never open `metrics.json` to fill it in.
 6. Answer in the user's language with exactly these parts, in this order:
    - one sentence per language: its verdict, the window, its `confidence`;
+   - if `tiers` holds two or more languages, one sentence on their order: the first
+     inner list gets the largest share of attention; languages in one list tie;
    - the `report_pdf` path;
    - a line starting "Limitations:" with the `caveat` text, always, even when
      `warnings` add other notes.
 7. Base every recommendation on a verdict and its confidence. Say which language or
    topic the data favours and why, in one or two sentences. A level shift or a rise
    from spikes is not momentum: never call it growth or rising demand, here either.
+   Choose only among the languages in the JSON line. Do not suggest other languages,
+   topics, markets or product ideas: the data says nothing about them.
 
 ## Running the script
 
@@ -168,6 +173,7 @@ Do not retry more than once. Do not edit files in this skill.
 | "Language A is more interested than B" (raw views) | "A gets N× the views of B; per million edition views the ratio is r." |
 | `vpm_median` as absolute views or audience size | "N views per million edition views (share of attention)"; audience size is `reach_median`. |
 | Any percentage when `pct_per_year` is absent | The direction only. |
+| Any number the JSON line does not contain (a trust percentage, a probability) | The `confidence` word and its flags. |
 
 Always mention: pageviews measure attention, not demand; one article per language;
 the result covers the stated window only.

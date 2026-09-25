@@ -78,10 +78,17 @@ class CompareRequest:
             )
 
     @property
+    def subject(self) -> str:
+        """The topic, else the source-language title, else the first title by language."""
+        if self.topic:
+            return self.topic
+        titles = {a.lang: a.title for a in self.titles}
+        return titles.get(self.source_lang) or titles[min(titles)]
+
+    @property
     def slug(self) -> str:
-        name = self.topic or min(self.titles, key=lambda a: a.lang).title
         span = f"{self.span.start:%Y%m%d}-{self.span.end:%Y%m%d}"
-        return f"{'-'.join(self.langs)}_{slugify(name)}_{span}"
+        return f"{'-'.join(self.langs)}_{slugify(self.subject)}_{span}"
 
     def to_dict(self) -> dict[str, Any]:
         return {

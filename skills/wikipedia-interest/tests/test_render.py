@@ -17,9 +17,21 @@ from wikitrends import cli
 from wikitrends.analysis import LanguageAnalyzer, rank
 from wikitrends.models import Article
 from wikitrends.render import MAX_COLOURS, palette, plt, save_charts, style
+from wikitrends.report import ReportBuilder
 from wikitrends.service import CompareRequest, RunResult
 
 GLYPHS = "Вікіпедія Київ Ґ Ї Є Łódź Gdańsk źćęąśżń Řehoř Plzeň ůěščřž № — “”"
+# One title per bundled font family, plus Arabic from DejaVu Sans.
+WORLD = {
+    "ar": "علم الفلك",
+    "hi": "खगोल शास्त्र",
+    "ja": "天文学",
+    "ko": "천문학",
+    "th": "ดาราศาสตร์",
+    "zh": "天文學",
+}
+# No bundled font has Tibetan.
+TIBETAN = "སྐར་རྩིས།"
 A4_POINTS = (595, 842)
 ARGS = [
     "compare",
@@ -57,10 +69,33 @@ def test_missing_glyph_check_really_fires() -> None:
     with style(), warnings.catch_warnings():
         warnings.filterwarnings("error", message=".*missing from font.*")
         fig = plt.figure()
-        fig.text(0.5, 0.5, "ウィキペディア")
+        fig.text(0.5, 0.5, TIBETAN)
         with pytest.raises(UserWarning, match="missing from font"):
             fig.canvas.draw()
         plt.close(fig)
+
+
+def test_titles_in_other_scripts_render_without_tofu(tmp_path: Path) -> None:
+    # A live Haiku run drew Japanese and Chinese titles as empty boxes.
+    titles = {**WORLD, "bo": TIBETAN}
+    total = synthetic.series(np.full(synthetic.DAYS, 5e6))
+    results = {
+        lang: LanguageAnalyzer().analyze(
+            Article(lang, title), synthetic.series(synthetic.flat(seed=i)), total
+        )
+        for i, (lang, title) in enumerate(titles.items())
+    }
+    articles = tuple(Article(lang, title) for lang, title in titles.items())
+    request = CompareRequest(tuple(sorted(titles)), total.span, titles=articles)
+    run = RunResult(request, None, results, (), rank(results), (), 0, 0)
+    metrics = {"conclusions": [], "warnings": [], "limitations": []}
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*missing from font.*")
+        built = ReportBuilder().build(run, metrics, tmp_path)
+    text = PdfReader(built.pdf).pages[0].extract_text()
+    for title in ("天文学", "천문학", "天文學", "ดาราศาสตร์"):
+        assert title in text
+    assert "(see metrics.json)" in text
 
 
 def test_report_is_one_a4_page_with_extractable_text(report: dict[str, Any]) -> None:
