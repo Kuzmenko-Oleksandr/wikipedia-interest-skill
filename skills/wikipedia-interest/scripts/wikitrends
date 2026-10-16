@@ -10,4 +10,25 @@ fi
 if [ -d /dev/stdin ]; then
     exec 0<&-
 fi
-PYTHONPATH="$skill_dir${PYTHONPATH:+:$PYTHONPATH}" exec "$python" -m wikitrends "$@"
+# Apple Silicon: a shell under Rosetta (Intel Homebrew's /usr/local/bin/bash, a Rosetta
+# terminal) starts a universal2 Python (python.org, Xcode) as x86_64, and the arm64 wheels in
+# .venv fail to load; the reverse happens to a .venv built under Rosetta. Run Python in the
+# architecture its numpy wheel was built for whenever that differs from the current one.
+arch=
+if [ "$(uname -s)" = Darwin ]; then
+    for wheel in "$skill_dir"/.venv/lib/python3.*/site-packages/numpy-*.dist-info/WHEEL; do
+        [ -f "$wheel" ] || continue
+        case $(cat -- "$wheel") in
+            *_arm64*) arch=arm64 ;;
+            *_x86_64*) arch=x86_64 ;;
+        esac
+    done
+    if [ "$arch" = "$(uname -m)" ]; then
+        arch=
+    fi
+fi
+export PYTHONPATH="$skill_dir${PYTHONPATH:+:$PYTHONPATH}"
+if [ -n "$arch" ]; then
+    exec arch "-$arch" "$python" -m wikitrends "$@"
+fi
+exec "$python" -m wikitrends "$@"

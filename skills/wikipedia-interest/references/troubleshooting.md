@@ -9,6 +9,7 @@ hint first. Details and logs are on stderr; add `-v` for progress messages.
 |---|---|---|
 | `Python 3.12+ is required` | Old interpreter (numpy 2.5 needs 3.12). | Run the command in `hint`: it creates `.venv` with the first `python3.12`+ on `PATH`. |
 | `missing dependency: httpx` (or numpy, matplotlib) | Requirements not installed. | Run the command in `hint`. `scripts/wikitrends` picks up the skill's `.venv` automatically. |
+| `dependencies were built for another CPU architecture` (Mac) | A shell under Rosetta (Intel Homebrew `/usr/local/bin/bash`) started a universal2 Python as x86_64 while `.venv` holds arm64 wheels, or the reverse. | Call `sh scripts/wikitrends`: it runs Python in the architecture of the `.venv` wheels. If it persists, delete `.venv` and reinstall as the hint says. |
 | `error: externally-managed-environment` from pip | System Python refuses global installs (PEP 668). | Install into the skill's `.venv` as the hint says, never with `--break-system-packages`. |
 | `Glyph ... missing from font` warnings | A user `matplotlibrc`, an old matplotlib or a missing `assets/fonts`. | The code forces DejaVu Sans plus the fonts in `assets/fonts` (CJK, Indic, Thai and more); check `pip show matplotlib` is 3.11.2 and the folder is complete. A title in a script none of them has is shown as `(see metrics.json)`. |
 

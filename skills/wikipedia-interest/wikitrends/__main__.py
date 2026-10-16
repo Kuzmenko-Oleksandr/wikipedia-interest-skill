@@ -21,9 +21,10 @@ def _install() -> str:
     )
 
 
-def _fail(error: str) -> NoReturn:
+def _fail(error: str, hint: str | None = None) -> NoReturn:
     # Same one-line contract as the CLI, before the CLI can even be imported.
-    print(json.dumps({"ok": False, "schema": 1, "error": error, "hint": f"Run: {_install()}"}))
+    hint = hint or f"Run: {_install()}"
+    print(json.dumps({"ok": False, "schema": 1, "error": error, "hint": hint}))
     raise SystemExit(1)
 
 
@@ -35,5 +36,16 @@ try:
     from wikitrends.cli import main
 except ModuleNotFoundError as exc:
     _fail(f"missing dependency: {exc.name}")
+except ImportError as exc:
+    # A compiled wheel that does not load, most often arm64 vs x86_64 under Rosetta on a Mac.
+    reinstall = f"rm -rf {SKILL_DIR}/.venv && {_install()}"
+    if "incompatible architecture" in str(exc):
+        _fail(
+            "dependencies were built for another CPU architecture (Rosetta?)",
+            f"Call sh {SKILL_DIR}/scripts/wikitrends, which runs Python in the matching "
+            f"architecture; if that still fails, run: {reinstall}",
+        )
+    first_line = next(iter(str(exc).strip().splitlines()), type(exc).__name__)
+    _fail(f"broken dependency: {first_line[:200]}", f"Run: {reinstall}")
 
 raise SystemExit(main())
